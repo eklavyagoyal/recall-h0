@@ -1,7 +1,15 @@
 import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
-import { AWS_REGION, BEDROCK_MODEL_ID, EMBED_DIM } from "@/lib/config";
+import { awsCredentialsProvider } from "@vercel/oidc-aws-credentials-provider";
+import { AWS_REGION, AWS_ROLE_ARN, BEDROCK_MODEL_ID, EMBED_DIM } from "@/lib/config";
 
-const client = new BedrockRuntimeClient({ region: AWS_REGION });
+// On Vercel, mint short-lived AWS credentials via OIDC (keyless — no stored keys).
+// Locally (e.g. the seed job), fall back to the default credential chain (your
+// `aws configure` profile), so Bedrock works the same in both places.
+const useOidc = Boolean(process.env.VERCEL && AWS_ROLE_ARN);
+const client = new BedrockRuntimeClient({
+  region: AWS_REGION,
+  ...(useOidc ? { credentials: awsCredentialsProvider({ roleArn: AWS_ROLE_ARN }) } : {}),
+});
 
 type TitanEmbeddingResponse = {
   embedding: number[];

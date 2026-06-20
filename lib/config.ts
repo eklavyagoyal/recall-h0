@@ -51,6 +51,7 @@ export const DEPLOY_TARGET = config.deployTarget;
 export const EMBED_PROVIDER = config.embedProvider;
 export const EMBED_DIM = config.embedDim;
 export const AWS_REGION = config.awsRegion;
+export const AWS_ROLE_ARN = config.awsRoleArn;
 export const DEMO_TLC = config.demoTlc;
 export const BEDROCK_MODEL_ID = config.bedrockModelId;
 export const TRACE_MAX_DEPTH = config.traceMaxDepth;
