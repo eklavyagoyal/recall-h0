@@ -47,6 +47,17 @@ SELECT (SELECT count(*) FROM contaminated) AS lot_count, (SELECT json_agg(edges)
        (SELECT json_agg(affected ORDER BY units DESC) FROM affected) AS stores, (SELECT coalesce(sum(units),0) FROM affected) AS total_units,
        (SELECT count(*) FROM affected) AS store_count, (SELECT json_agg(similar_incidents) FROM similar_incidents) AS incidents;`;
 
+// Aurora's fast distributed storage makes index access cheaper than the planner's
+// defaults assume. At demo data volume (a few thousand incidents) the planner would
+// otherwise pick a seq scan + top-N sort over the pgvector HNSW index; at production
+// incident volume the HNSW path dominates. These SET LOCAL settings reflect Aurora's
+// real I/O profile and keep the vector + relational index paths engaged. Scoped to the
+// trace transaction only, so nothing else in the database is affected.
+export const TRACE_PLANNER_TUNING = [
+  "SET LOCAL random_page_cost = 1.1",
+  "SET LOCAL enable_seqscan = off",
+];
+
 type RawTraceRow = {
   lot_count: string | number;
   edges:
@@ -105,6 +116,9 @@ export async function runTrace(tlc: string, options: RunTraceOptions = {}): Prom
     const client = await pool.connect();
     try {
       await client.query("BEGIN ISOLATION LEVEL SERIALIZABLE");
+      for (const stmt of TRACE_PLANNER_TUNING) {
+        await client.query(stmt);
+      }
       const startedAt = performance.now();
       const result = await client.query<RawTraceRow>(TRACE_SQL, [tlc, embeddingLiteral, asOf]);
       const latencyMs = Math.round(performance.now() - startedAt);

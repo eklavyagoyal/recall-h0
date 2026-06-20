@@ -1,6 +1,6 @@
 import { pool } from "@/lib/db/pool";
 import { embed } from "@/lib/embeddings";
-import { TRACE_SQL, toVectorLiteral } from "@/lib/db/queries/trace";
+import { TRACE_PLANNER_TUNING, TRACE_SQL, toVectorLiteral } from "@/lib/db/queries/trace";
 import { explainNodes } from "@/lib/explain/annotate";
 
 export type ExplainNode = {
@@ -25,6 +25,9 @@ export async function explainTrace(
 
   try {
     await client.query("BEGIN");
+    for (const stmt of TRACE_PLANNER_TUNING) {
+      await client.query(stmt);
+    }
     const result = await client.query<{ "QUERY PLAN": string }>(
       `EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT) ${TRACE_SQL}`,
       [tlc, vectorLiteral, asOf],
