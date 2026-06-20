@@ -1,0 +1,6 @@
+Live EXPLAIN nodes served by https://recall-h0.vercel.app/api/explain (DEMO_TLC):
+GiST Spatial Path
+HNSW Index Scan
+Recursive Union
+
+Warm trace: query latencyMs=305, storeCount=1400, incidents=5
