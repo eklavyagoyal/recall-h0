@@ -18,11 +18,6 @@ if (!Number.isInteger(EMBED_DIM) || EMBED_DIM < 1 || EMBED_DIM > 16000) {
 
 function poolConfig(): PoolConfig {
   if (DEPLOY_TARGET === "aurora") {
-    const url = process.env.DATABASE_URL;
-    if (!url) {
-      throw new Error("DEPLOY_TARGET=aurora requires DATABASE_URL to point at Aurora.");
-    }
-
     const caPath =
       process.env.RDS_CA_BUNDLE ?? join(currentDir, "..", "certs", "rds-global-bundle.pem");
     if (!existsSync(caPath)) {
@@ -30,10 +25,23 @@ function poolConfig(): PoolConfig {
         `Aurora TLS CA bundle not found at ${caPath}. Download the RDS global bundle or set RDS_CA_BUNDLE.`,
       );
     }
+    const ssl = { ca: readFileSync(caPath, "utf8"), rejectUnauthorized: true } as const;
 
+    const url = process.env.DATABASE_URL;
+    if (url) {
+      return { connectionString: url, ssl };
+    }
+    // No DATABASE_URL: discrete fields + PGPASSWORD (read by pg). No URL to encode.
+    const host = process.env.AURORA_HOST;
+    if (!host) {
+      throw new Error("DEPLOY_TARGET=aurora requires DATABASE_URL, or AURORA_HOST + PGPASSWORD.");
+    }
     return {
-      connectionString: url,
-      ssl: { ca: readFileSync(caPath, "utf8"), rejectUnauthorized: true },
+      host,
+      port: Number(process.env.AURORA_PORT ?? 5432),
+      database: process.env.AURORA_DB ?? "recall",
+      user: process.env.AURORA_USER ?? "recall",
+      ssl,
     };
   }
 

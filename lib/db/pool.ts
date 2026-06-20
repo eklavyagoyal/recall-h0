@@ -19,16 +19,23 @@ function auroraSsl(): PoolConfig["ssl"] {
 
 function createPoolConfig(): PoolConfig {
   if (config.deployTarget === "aurora") {
+    const base = { max: 5, idleTimeoutMillis: 10_000, ssl: auroraSsl() };
     const connectionString = process.env.DATABASE_URL;
-    if (!connectionString) {
-      throw new Error("DEPLOY_TARGET=aurora requires DATABASE_URL (the Aurora connection string).");
+    if (connectionString) {
+      return { connectionString, ...base };
     }
-
+    // No DATABASE_URL: connect from discrete fields. The password is read from the
+    // PGPASSWORD env var by pg automatically, so it is never URL-encoded or
+    // shell-quoted — this avoids every connection-string parsing trap.
+    if (!config.aurora.host) {
+      throw new Error("DEPLOY_TARGET=aurora needs DATABASE_URL, or AURORA_HOST + PGPASSWORD.");
+    }
     return {
-      connectionString,
-      max: 5,
-      idleTimeoutMillis: 10_000,
-      ssl: auroraSsl(),
+      host: config.aurora.host,
+      port: config.aurora.port,
+      database: config.aurora.db,
+      user: config.aurora.user,
+      ...base,
     };
   }
 
