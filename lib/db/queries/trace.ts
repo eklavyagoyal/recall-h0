@@ -101,7 +101,18 @@ export function toVectorLiteral(vector: number[]): string {
 
 async function embeddingFor(tlc: string, options: RunTraceOptions): Promise<number[]> {
   if (options.queryEmbedding) return options.queryEmbedding;
-  const vectors = await embed([options.queryText ?? tlc]);
+  // Default the semantic query to the traced lot's product name (e.g. "Romaine Lettuce")
+  // rather than the opaque lot code, so the pgvector search surfaces incidents about the
+  // same product. One indexed lookup on lots.tlc; falls back to caller text or the TLC.
+  let queryText = options.queryText;
+  if (!queryText) {
+    const { rows } = await pool.query<{ product_name: string }>(
+      "SELECT product_name FROM lots WHERE tlc = $1",
+      [tlc],
+    );
+    queryText = rows[0]?.product_name ?? tlc;
+  }
+  const vectors = await embed([queryText]);
   const first = vectors[0];
   if (!first) throw new Error("Embedding provider returned no vectors.");
   return first;
