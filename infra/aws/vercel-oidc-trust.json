@@ -10,10 +10,11 @@
       "Action": "sts:AssumeRoleWithWebIdentity",
       "Condition": {
         "StringEquals": {
-          "oidc.vercel.com/goyaleklavya24-1201s-projects:aud": "https://vercel.com/goyaleklavya24-1201s-projects"
-        },
-        "StringLike": {
-          "oidc.vercel.com/goyaleklavya24-1201s-projects:sub": "owner:goyaleklavya24-1201s-projects:project:recall-h0:environment:*"
+          "oidc.vercel.com/goyaleklavya24-1201s-projects:aud": "https://vercel.com/goyaleklavya24-1201s-projects",
+          "oidc.vercel.com/goyaleklavya24-1201s-projects:sub": [
+            "owner:goyaleklavya24-1201s-projects:project:recall-h0:environment:production",
+            "owner:goyaleklavya24-1201s-projects:project:recall-h0:environment:preview"
+          ]
         }
       }
     }
