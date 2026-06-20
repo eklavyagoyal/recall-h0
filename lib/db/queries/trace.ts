@@ -41,7 +41,6 @@ similar_incidents AS (
   SELECT i.incident_id, i.raw_text, i.pathogen, 1 - (i.embedding <=> $2::vector) AS score
   FROM incidents i
   WHERE EXISTS (SELECT 1 FROM contaminated)
-    AND (i.suspected_lot_id IN (SELECT lot_id FROM contaminated) OR i.suspected_lot_id IS NULL)
   ORDER BY i.embedding <=> $2::vector LIMIT 5
 )
 SELECT (SELECT count(*) FROM contaminated) AS lot_count, (SELECT json_agg(edges) FROM edges) AS edges,
