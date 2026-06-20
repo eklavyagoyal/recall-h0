@@ -1,0 +1,21 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "VercelTeamIssuerOIDC",
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::089089716242:oidc-provider/oidc.vercel.com/goyaleklavya24-1201s-projects"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "oidc.vercel.com/goyaleklavya24-1201s-projects:aud": "https://vercel.com/goyaleklavya24-1201s-projects"
+        },
+        "StringLike": {
+          "oidc.vercel.com/goyaleklavya24-1201s-projects:sub": "owner:goyaleklavya24-1201s-projects:project:recall-h0:environment:*"
+        }
+      }
+    }
+  ]
+}
