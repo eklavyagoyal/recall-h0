@@ -1,0 +1,125 @@
+/* Recall pitch — scoped cinematic theme (epidemiological control-room × terminal). */
+.pitch {
+  --p-bg: #06070a;
+  --p-bg-2: #0b0c12;
+  --p-surface: rgba(255, 255, 255, 0.026);
+  --p-surface-2: rgba(255, 255, 255, 0.05);
+  --p-line: rgba(255, 255, 255, 0.08);
+  --p-line-2: rgba(255, 255, 255, 0.16);
+  --p-fg: #edeef3;
+  --p-muted: #9395a3;
+  --p-faint: #5b5d6b;
+  --p-red: #ff4d4d;
+  --p-red-2: #ff7849;
+  --p-red-soft: rgba(255, 77, 77, 0.13);
+  --p-teal: #2fe0c0;
+  --p-teal-soft: rgba(47, 224, 192, 0.12);
+  --p-amber: #f6bb52;
+
+  position: relative;
+  min-height: 100vh;
+  width: 100%;
+  background: var(--p-bg);
+  color: var(--p-fg);
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.011em;
+  overflow-x: clip;
+}
+
+.pitch ::selection {
+  background: var(--p-red);
+  color: #fff;
+}
+
+.pitch-mono {
+  font-family: var(--font-geist-mono), ui-monospace, "SF Mono", monospace;
+  font-feature-settings: "ss01", "tnum" 1;
+}
+
+/* Eyebrow / kicker label */
+.pitch-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--p-muted);
+}
+.pitch-kicker::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  background: var(--p-red);
+  box-shadow: 0 0 14px 1px var(--p-red);
+}
+.pitch-kicker.teal::before {
+  background: var(--p-teal);
+  box-shadow: 0 0 14px 1px var(--p-teal);
+}
+
+/* Hairline grid backdrop, masked to fade at edges */
+.pitch-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, var(--p-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--p-line) 1px, transparent 1px);
+  background-size: 60px 60px;
+  -webkit-mask-image: radial-gradient(ellipse 75% 60% at 50% 42%, #000 30%, transparent 80%);
+  mask-image: radial-gradient(ellipse 75% 60% at 50% 42%, #000 30%, transparent 80%);
+}
+
+/* Soft radial glow */
+.pitch-glow {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(90px);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.pitch-card {
+  background: linear-gradient(180deg, var(--p-surface-2), var(--p-surface));
+  border: 1px solid var(--p-line);
+  border-radius: 18px;
+  backdrop-filter: blur(6px);
+}
+
+.pitch-hairline {
+  border: 1px solid var(--p-line);
+}
+
+/* Gradient ink for hero words */
+.pitch-ink-red {
+  background: linear-gradient(100deg, var(--p-red), var(--p-red-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.pitch-display {
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 0.98;
+}
+
+.pitch-noise::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pitch * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
