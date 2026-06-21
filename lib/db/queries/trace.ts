@@ -30,7 +30,7 @@ spatial_stores AS MATERIALIZED (
   ORDER BY s.geom <-> ST_SetSRID(ST_MakePoint(-98.5795, 39.8283), 4326)::geography
 ),
 affected AS (
-  SELECT s.store_id, s.name, s.chain, s.address, ST_Y(s.geom::geometry) AS lat, ST_X(s.geom::geometry) AS lng, SUM(sh.units) AS units
+  SELECT s.store_id, s.name, s.chain, s.address, ST_Y(s.geom::geometry) AS lat, ST_X(s.geom::geometry) AS lng, SUM(sh.units) AS units, min(sh.shipped_at) AS arrived_at
   FROM shipments sh
   JOIN contaminated c ON c.lot_id = sh.lot_id
   JOIN spatial_stores s ON s.store_id = sh.store_id
@@ -72,6 +72,7 @@ type RawTraceRow = {
         lat: string | number;
         lng: string | number;
         units: string | number;
+        arrived_at: string;
       }[]
     | null;
   total_units: string | number;
@@ -178,6 +179,7 @@ export function mapTraceRow(row: RawTraceRow, latencyMs: number, asOf: string | 
     lat: Number(store.lat),
     lng: Number(store.lng),
     units: Number(store.units),
+    arrivedAt: store.arrived_at,
   }));
 
   const incidents: SimilarIncident[] = (row.incidents ?? []).map((incident) => ({

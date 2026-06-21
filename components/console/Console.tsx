@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, useTransition, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition, type FormEvent } from "react";
 import { AlertTriangle, RotateCcw, ShieldCheck } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { traceAction } from "@/app/actions/trace";
@@ -11,12 +11,28 @@ import { IncidentInbox } from "./IncidentInbox";
 import { IncidentRail } from "./IncidentRail";
 import { LineageDrawer } from "./LineageDrawer";
 import { MapPane } from "./MapPane";
+import { OutbreakTimeline } from "./OutbreakTimeline";
 import { QueryInspector } from "./QueryInspector";
 import { ScenarioCycler } from "./ScenarioCycler";
 import { ScopeExport } from "./ScopeExport";
 import { TopBar } from "./TopBar";
 
 type Status = "idle" | "loading" | "error";
+
+// Earliest / latest moment the contamination reached a store, in epoch ms.
+// Drives the Outbreak Time-Travel scrubber. Returns nulls when there's no spread.
+function arrivalRange(trace: TraceResult | null): { minT: number | null; maxT: number | null } {
+  let minT = Number.POSITIVE_INFINITY;
+  let maxT = Number.NEGATIVE_INFINITY;
+  for (const store of trace?.stores ?? []) {
+    const reached = Date.parse(store.arrivedAt);
+    if (Number.isNaN(reached)) continue;
+    if (reached < minT) minT = reached;
+    if (reached > maxT) maxT = reached;
+  }
+  if (!Number.isFinite(minT) || !Number.isFinite(maxT)) return { minT: null, maxT: null };
+  return { minT, maxT };
+}
 
 type ConsoleProps = {
   initial: TraceResult | null;
@@ -35,9 +51,62 @@ export function Console({ initial, initialTlc, bootError, bootCode, traceSql }: 
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [selection, setSelection] = useState<ConsoleSelection | null>(null);
   const [autoplay, setAutoplay] = useState(false);
+  const [cutoff, setCutoff] = useState<number>(() => arrivalRange(initial).maxT ?? 0);
+  const [playing, setPlaying] = useState(false);
+  const [prevResult, setPrevResult] = useState(initial);
   const [isPending, startTransition] = useTransition();
 
   const loading = status === "loading" || isPending;
+  const timeline = useMemo(() => arrivalRange(result), [result]);
+
+  // When a new trace lands, snap the playhead to the end (show everything) and stop any
+  // replay — done during render so cutoff is never stale or non-finite for even one frame
+  // (OutbreakTimeline formats it as a date; MapPane filters pins by it).
+  if (result !== prevResult) {
+    setPrevResult(result);
+    setPlaying(false);
+    setCutoff(timeline.maxT ?? 0);
+  }
+
+  // Replay loop: sweep the cutoff from the first arrival to the last over ~5.2s, then stop.
+  // Driven by a SINGLE clock — completion is when the playhead itself reaches maxT, not a
+  // parallel wall-clock timeout, so a throttled/background tab can't desync the two. playing
+  // only flips true via onTogglePlay (which pre-validates the range), and any new trace
+  // resets playing=false during render, so the guard here is a pure no-op exit.
+  useEffect(() => {
+    if (!playing) return;
+    const { minT, maxT } = timeline;
+    if (minT === null || maxT === null || maxT <= minT) return;
+    const DURATION_MS = 5200;
+    const STEP_MS = 60;
+    const increment = (maxT - minT) * (STEP_MS / DURATION_MS);
+    let current = minT;
+    const ticker = window.setInterval(() => {
+      current = Math.min(maxT, current + increment);
+      setCutoff(current);
+      if (current >= maxT) {
+        window.clearInterval(ticker);
+        setPlaying(false);
+      }
+    }, STEP_MS);
+    return () => window.clearInterval(ticker);
+  }, [playing, timeline]);
+
+  const onScrub = useCallback((next: number) => {
+    setPlaying(false);
+    setCutoff(next);
+  }, []);
+
+  const onTogglePlay = useCallback(() => {
+    if (playing) {
+      setPlaying(false);
+      return;
+    }
+    const { minT, maxT } = timeline;
+    if (minT === null || maxT === null || maxT <= minT) return;
+    setCutoff(minT);
+    setPlaying(true);
+  }, [playing, timeline]);
   const isClean =
     status !== "error" &&
     !loading &&
@@ -159,7 +228,12 @@ export function Console({ initial, initialTlc, bootError, bootCode, traceSql }: 
               loading={loading}
               onSelect={setSelection}
             />
-            <MapPane stores={result?.stores ?? []} loading={loading} onSelect={setSelection} />
+            <MapPane
+              stores={result?.stores ?? []}
+              loading={loading}
+              onSelect={setSelection}
+              cutoff={cutoff}
+            />
             <div className="grid min-h-0 grid-rows-[minmax(180px,1fr)_auto_minmax(190px,0.9fr)] bg-[var(--p-bg)]">
               <IncidentRail incidents={result?.incidents ?? []} loading={loading} />
               <ScopeExport trace={result} />
@@ -184,6 +258,19 @@ export function Console({ initial, initialTlc, bootError, bootCode, traceSql }: 
             </section>
           )}
         </div>
+      )}
+
+      {status !== "error" && result && result.meta.storeCount > 0 && timeline.minT !== null && (
+        <OutbreakTimeline
+          stores={result.stores}
+          cutoff={cutoff}
+          minT={timeline.minT}
+          maxT={timeline.maxT}
+          playing={playing}
+          loading={loading}
+          onScrub={onScrub}
+          onTogglePlay={onTogglePlay}
+        />
       )}
 
       <QueryInspector tlc={tlc} sql={traceSql} open={inspectorOpen} onOpenChange={setInspectorOpen} />

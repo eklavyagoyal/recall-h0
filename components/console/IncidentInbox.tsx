@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { motion } from "motion/react";
+import { ArrowUpRight, Loader2 } from "lucide-react";
 import type { IncidentCluster, InboxIncident, IncidentsResult } from "@/lib/types";
+import { PaneShell } from "./PaneShell";
 import { fmtRelative } from "./polish";
 
 type IncidentInboxProps = {
@@ -39,112 +41,150 @@ export function IncidentInbox({ onTrace, tracingTlc = null }: IncidentInboxProps
     return () => controller.abort();
   }, []);
 
-  return (
-    <section className="flex min-h-0 flex-col border-t border-neutral-800 bg-neutral-950">
-      <header className="flex h-10 shrink-0 items-center justify-between border-b border-neutral-800 px-3">
-        <span className="text-xs font-medium uppercase text-neutral-400">Incident inbox</span>
-        {data && (
-          <span className="font-mono text-[10px] text-neutral-600">
-            {data.incidents.length} reports / {data.clusters.length} clusters
-          </span>
-        )}
-      </header>
+  const subtitle = data
+    ? `${data.incidents.length} reports / ${data.clusters.length} clusters`
+    : loading
+      ? "loading"
+      : undefined;
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-3">
+  return (
+    <PaneShell title="Incident inbox" subtitle={subtitle} accent="red">
+      <div className="h-full min-h-0 overflow-y-auto px-3.5 py-3">
         {loading && <InboxSkeleton />}
         {!loading && error && (
-          <p role="alert" className="rounded-md border border-red-900 bg-red-950/40 p-3 text-sm text-red-200">
+          <p
+            role="alert"
+            className="console-mono rounded-md border border-[var(--p-red)]/40 bg-[var(--p-red-soft)] px-3 py-2.5 text-xs leading-relaxed text-[var(--p-red)]"
+          >
             {error}
           </p>
         )}
         {!loading && !error && groups.length === 0 && (
-          <p className="py-8 text-center text-sm text-neutral-600">No incident reports.</p>
+          <p className="console-mono py-10 text-center text-xs text-[var(--p-muted)]">
+            No incident reports.
+          </p>
         )}
         {!loading && !error && groups.length > 0 && (
-          <div className="space-y-4">
-            {groups.slice(0, 4).map((group) => (
-              <div key={group.key} className="space-y-2">
-                {group.cluster && (
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="inline-flex items-center gap-1 rounded-full border border-red-800 bg-red-500/15 px-2 py-0.5 text-[10px] text-red-200"
-                      title="pgvector grouped differently worded reports as one signature"
-                    >
-                      <span className="size-1.5 rounded-full bg-red-500 animate-pin-pulse" />
-                      possible cluster / {group.cluster.size}
-                    </span>
-                    <span className="truncate text-xs text-neutral-500">{group.cluster.label}</span>
-                  </div>
-                )}
+          <div className="space-y-5">
+            {groups.slice(0, 4).map((group) => {
+              const rows = group.incidents.slice(0, group.cluster ? 3 : 5);
+              return (
+                <div key={group.key} className="space-y-2">
+                  {group.cluster && (
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="console-mono inline-flex items-center gap-1.5 rounded-full border border-[var(--p-red)]/40 bg-[var(--p-red-soft)] px-2 py-0.5 text-[10px] text-[var(--p-red)]"
+                        title="pgvector grouped differently worded reports as one signature"
+                      >
+                        <span
+                          className="h-1.5 w-1.5 rounded-full bg-[var(--p-red)]"
+                          style={{ boxShadow: "0 0 6px 0 var(--p-red)" }}
+                          aria-hidden="true"
+                        />
+                        possible cluster / {group.cluster.size}
+                      </span>
+                      <span className="truncate text-xs text-[var(--p-muted)]">{group.cluster.label}</span>
+                    </div>
+                  )}
 
-                <ul className="space-y-2">
-                  {group.incidents.slice(0, group.cluster ? 3 : 5).map((incident) => (
-                    <IncidentRow
-                      key={incident.incidentId}
-                      incident={incident}
-                      tracing={!!incident.suspectedTlc && incident.suspectedTlc === tracingTlc}
-                      onTrace={onTrace}
-                    />
-                  ))}
-                </ul>
-              </div>
-            ))}
+                  <ul className="space-y-1.5">
+                    {rows.map((incident, index) => (
+                      <IncidentRow
+                        key={incident.incidentId}
+                        incident={incident}
+                        index={index}
+                        tracing={!!incident.suspectedTlc && incident.suspectedTlc === tracingTlc}
+                        onTrace={onTrace}
+                      />
+                    ))}
+                  </ul>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
-    </section>
+    </PaneShell>
   );
 }
 
 function IncidentRow({
   incident,
+  index,
   tracing,
   onTrace,
 }: {
   incident: InboxIncident;
+  index: number;
   tracing: boolean;
   onTrace: (tlc: string) => void;
 }) {
   const traceable = Boolean(incident.suspectedTlc);
   return (
-    <li className="rounded-md border border-neutral-800 bg-neutral-900 p-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="line-clamp-2 text-xs leading-relaxed text-neutral-300">{incident.text}</p>
-          <p className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-neutral-500">
-            {incident.pathogen && (
-              <span className="rounded border border-neutral-700 px-1.5 py-0.5">{incident.pathogen}</span>
-            )}
-            {incident.suspectedTlc && (
-              <span className="font-mono text-neutral-400">{incident.suspectedTlc}</span>
-            )}
-            <span>{fmtRelative(incident.reportedAt)}</span>
-          </p>
+    <motion.li
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.26, delay: Math.min(index, 8) * 0.045, ease: [0.22, 1, 0.36, 1] }}
+    >
+      <button
+        type="button"
+        disabled={!traceable || tracing}
+        onClick={() => incident.suspectedTlc && onTrace(incident.suspectedTlc)}
+        aria-label={incident.suspectedTlc ? `Trace lot ${incident.suspectedTlc}` : "No suspected lot"}
+        aria-busy={tracing}
+        className="group relative block w-full cursor-pointer rounded-md border border-[var(--p-line)] bg-[var(--p-surface)] py-2.5 pl-3.5 pr-3 text-left transition-colors duration-200 hover:border-[var(--p-line-2)] hover:bg-[var(--p-surface-2)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--p-red)] disabled:cursor-default"
+      >
+        <span
+          className="pointer-events-none absolute inset-y-0 left-0 w-px bg-[var(--p-red)] opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100"
+          style={{ opacity: tracing ? 1 : undefined, boxShadow: tracing ? "0 0 8px 0 var(--p-red)" : undefined }}
+          aria-hidden="true"
+        />
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="line-clamp-2 text-xs leading-relaxed text-[var(--p-fg)]">{incident.text}</p>
+            <p className="console-mono mt-2 flex flex-wrap items-center gap-2 text-[10px] text-[var(--p-faint)]">
+              {incident.pathogen && (
+                <span className="rounded border border-[var(--p-line-2)] px-1.5 py-0.5 text-[var(--p-muted)]">
+                  {incident.pathogen}
+                </span>
+              )}
+              {incident.suspectedTlc && (
+                <span className="rounded border border-[var(--p-teal)]/30 bg-[var(--p-teal-soft)] px-1.5 py-0.5 text-[var(--p-teal)]">
+                  {incident.suspectedTlc}
+                </span>
+              )}
+              <span>{fmtRelative(incident.reportedAt)}</span>
+            </p>
+          </div>
+
+          {traceable && (
+            <span
+              className="mt-0.5 flex shrink-0 items-center gap-1 text-[10px] text-[var(--p-red)]"
+              aria-hidden="true"
+            >
+              {tracing ? (
+                <>
+                  <Loader2 className="size-3.5 animate-spin" />
+                  <span className="console-mono">tracing</span>
+                </>
+              ) : (
+                <ArrowUpRight className="size-4 text-[var(--p-faint)] opacity-0 transition-all duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-[var(--p-red)] group-hover:opacity-100 group-focus-visible:opacity-100" />
+              )}
+            </span>
+          )}
         </div>
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          disabled={!traceable || tracing}
-          onClick={() => incident.suspectedTlc && onTrace(incident.suspectedTlc)}
-          aria-label={
-            incident.suspectedTlc ? `Trace lot ${incident.suspectedTlc}` : "No suspected lot"
-          }
-        >
-          {tracing ? "Tracing..." : "Trace"}
-        </Button>
-      </div>
-    </li>
+      </button>
+    </motion.li>
   );
 }
 
 function InboxSkeleton() {
   return (
-    <div className="space-y-3" aria-hidden="true">
+    <div className="space-y-1.5" aria-hidden="true">
       {Array.from({ length: 4 }).map((_, index) => (
-        <div key={index} className="space-y-2 rounded-md border border-neutral-800 p-3">
-          <div className="h-4 w-full animate-pulse rounded bg-neutral-800" />
-          <div className="h-3 w-2/3 animate-pulse rounded bg-neutral-900" />
+        <div key={index} className="space-y-2 rounded-md border border-[var(--p-line)] bg-[var(--p-surface)] px-3.5 py-2.5">
+          <div className="h-3.5 w-full animate-pulse rounded bg-[var(--p-surface-2)]" />
+          <div className="h-3 w-2/3 animate-pulse rounded bg-[var(--p-surface)]" />
         </div>
       ))}
     </div>

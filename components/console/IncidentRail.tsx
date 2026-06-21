@@ -1,24 +1,26 @@
 "use client";
 
-import { Badge } from "@/components/ui/badge";
+import { motion, useReducedMotion } from "motion/react";
 import type { SimilarIncident } from "@/lib/types";
-
-function scoreClass(score: number): string {
-  if (score >= 0.85) return "border-red-700 bg-red-500/15 text-red-200";
-  if (score >= 0.7) return "border-amber-700 bg-amber-500/15 text-amber-200";
-  return "border-neutral-700 bg-neutral-800 text-neutral-300";
-}
+import { PaneShell } from "./PaneShell";
 
 function RailSkeleton() {
   return (
-    <div className="space-y-3 p-3">
+    <ul className="space-y-px">
       {Array.from({ length: 5 }).map((_, index) => (
-        <div
-          key={index}
-          className="h-24 animate-pulse rounded-md border border-neutral-800 bg-neutral-900"
-        />
+        <li key={index} className="px-3.5 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="h-2.5 w-24 animate-pulse rounded-sm bg-[var(--p-surface-2)]" />
+            <div className="h-2.5 w-10 animate-pulse rounded-sm bg-[var(--p-surface-2)]" />
+          </div>
+          <div className="mt-2.5 h-2 w-full animate-pulse rounded-sm bg-[var(--p-surface)]" />
+          <div className="mt-1.5 h-2 w-3/4 animate-pulse rounded-sm bg-[var(--p-surface)]" />
+          <div className="mt-3 h-[3px] w-full overflow-hidden rounded-full bg-[var(--p-surface-2)]">
+            <div className="h-full w-1/3 animate-pulse rounded-full bg-[var(--p-teal-soft)]" />
+          </div>
+        </li>
       ))}
-    </div>
+    </ul>
   );
 }
 
@@ -29,57 +31,96 @@ export function IncidentRail({
   incidents: SimilarIncident[];
   loading: boolean;
 }) {
-  return (
-    <aside className="flex h-full min-h-0 flex-col bg-neutral-950">
-      <div className="flex h-10 shrink-0 items-center justify-between border-b border-neutral-800 px-3">
-        <span className="text-xs font-medium uppercase text-neutral-400">Similar incidents</span>
-        <span className="font-mono text-[10px] text-neutral-600">pgvector / HNSW</span>
-      </div>
+  const reduceMotion = useReducedMotion();
+  const subtitle =
+    loading && incidents.length === 0
+      ? "scanning"
+      : incidents.length > 0
+        ? `${incidents.length} matches`
+        : "pgvector / cosine";
 
-      <div className="relative min-h-0 flex-1 overflow-y-auto">
+  return (
+    <PaneShell title="Similar incidents" subtitle={subtitle} accent="teal">
+      <div className="relative h-full min-h-0 overflow-y-auto">
         {loading && incidents.length === 0 ? (
           <RailSkeleton />
         ) : incidents.length === 0 ? (
-          <div className="flex h-full items-center justify-center px-5 text-center text-sm text-neutral-600">
-            No similar incidents for this trace.
+          <div className="flex h-full min-h-[180px] flex-col items-center justify-center gap-1.5 px-5 text-center">
+            <span className="console-kicker text-[var(--p-faint)]">Awaiting trace</span>
+            <span className="console-mono text-[10px] text-[var(--p-faint)]">
+              pgvector / cosine similarity
+            </span>
           </div>
         ) : (
-          <ul className="space-y-3 p-3">
-            {incidents.map((incident) => (
-              <li
-                key={incident.incidentId}
-                className="rounded-md border border-neutral-800 bg-neutral-900 p-3 transition-colors hover:border-neutral-700"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <span className="min-w-0 text-xs font-medium text-neutral-300">
-                    {incident.pathogen ?? "Unclassified report"}
-                  </span>
-                  <Badge
-                    variant="outline"
-                    className={`h-5 shrink-0 rounded-full px-2 font-mono text-[10px] ${scoreClass(
-                      incident.score,
-                    )}`}
-                    title="Cosine similarity to the query embedding"
-                  >
-                    {incident.score.toFixed(2)}
-                  </Badge>
-                </div>
-                <p className="mt-2 line-clamp-3 text-xs leading-relaxed text-neutral-400">
-                  {incident.text}
-                </p>
-                <span className="mt-2 block font-mono text-[10px] text-neutral-600">
-                  #{incident.incidentId}
-                </span>
-              </li>
-            ))}
+          <ul>
+            {incidents.map((incident, index) => {
+              const score = Math.max(0, Math.min(1, incident.score));
+              const pct = Math.round(score * 100);
+              return (
+                <motion.li
+                  key={incident.incidentId}
+                  initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{
+                    duration: 0.26,
+                    delay: reduceMotion ? 0 : Math.min(index * 0.045, 0.4),
+                    ease: [0.22, 1, 0.36, 1],
+                  }}
+                  className="group border-b border-[var(--p-line)] px-3.5 py-3 transition-colors duration-150 hover:bg-[var(--p-surface)] last:border-b-0"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="console-kicker min-w-0 truncate text-[var(--p-teal)]">
+                      {incident.pathogen ?? "Unclassified"}
+                    </span>
+                    <span
+                      className="console-mono shrink-0 text-[11px] font-medium text-[var(--p-teal)] tabular-nums"
+                      title="Cosine similarity to the query embedding"
+                    >
+                      {pct}%
+                    </span>
+                  </div>
+
+                  <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-[var(--p-fg)]">
+                    {incident.text}
+                  </p>
+
+                  <div className="mt-3 flex items-center gap-2.5">
+                    <div className="h-[3px] min-w-0 flex-1 overflow-hidden rounded-full bg-[var(--p-surface-2)]">
+                      <motion.div
+                        className="h-full origin-left rounded-full bg-[var(--p-teal)]"
+                        style={{
+                          width: "100%",
+                          boxShadow: "0 0 6px 0 var(--p-teal)",
+                        }}
+                        initial={reduceMotion ? false : { scaleX: 0 }}
+                        animate={{ scaleX: score }}
+                        transition={{
+                          duration: 0.55,
+                          delay: reduceMotion ? 0 : Math.min(index * 0.045 + 0.12, 0.5),
+                          ease: [0.22, 1, 0.36, 1],
+                        }}
+                      />
+                    </div>
+                    <span className="console-mono shrink-0 text-[10px] text-[var(--p-faint)]">
+                      #{incident.incidentId}
+                    </span>
+                  </div>
+                </motion.li>
+              );
+            })}
           </ul>
         )}
+
         {loading && incidents.length > 0 && (
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-1 overflow-hidden bg-neutral-900">
-            <div className="h-full w-1/2 animate-pulse bg-red-500/70" />
+          <div className="pointer-events-none sticky bottom-0 left-0 right-0 h-px overflow-hidden bg-[var(--p-line)]">
+            <motion.div
+              className="h-full w-1/2 origin-left bg-[var(--p-teal)]"
+              animate={{ x: ["-100%", "200%"] }}
+              transition={{ duration: 1.1, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
+            />
           </div>
         )}
       </div>
-    </aside>
+    </PaneShell>
   );
 }

@@ -12,6 +12,7 @@ export type AffectedStore = {
   lat: number;
   lng: number;
   units: number;
+  arrivedAt: string;
 };
 
 export type SimilarIncident = {

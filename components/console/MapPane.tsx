@@ -46,23 +46,41 @@ export function MapPane({
   stores,
   loading,
   onSelect,
+  cutoff = null,
 }: {
   stores: AffectedStore[];
   loading: boolean;
   onSelect?: (selection: ConsoleSelection) => void;
+  cutoff?: number | null;
 }) {
   const mapRef = useRef<MapRef>(null);
   const [ready, setReady] = useState(false);
   const [hovered, setHovered] = useState<AffectedStore | null>(null);
   const bounds = useMemo(() => storeBounds(stores), [stores]);
 
+  // Outbreak time-travel: when a cutoff timestamp is set, only stores the contamination
+  // had reached by that moment are lit. Bounds stay fixed to ALL stores so the camera
+  // never jumps as pins ignite — the spread plays out inside one stable frame.
+  const visibleStores = useMemo(() => {
+    if (cutoff == null) return stores;
+    return stores.filter((store) => {
+      const reached = Date.parse(store.arrivedAt);
+      return Number.isNaN(reached) || reached <= cutoff;
+    });
+  }, [stores, cutoff]);
+
   useEffect(() => {
     if (!ready || !bounds) return;
     mapRef.current?.fitBounds(bounds, { padding: 48, duration: 700, maxZoom: 8.5 });
   }, [ready, bounds]);
 
+  const subtitle =
+    cutoff == null
+      ? `${formatter.format(stores.length)} pins`
+      : `${formatter.format(visibleStores.length)} / ${formatter.format(stores.length)} reached`;
+
   return (
-    <PaneShell title="Affected stores" subtitle={`${formatter.format(stores.length)} pins`}>
+    <PaneShell title="Affected stores" subtitle={subtitle}>
       <div className="relative h-full min-h-[320px] w-full">
         {loading && <MapSkeleton />}
         <Map
@@ -74,7 +92,7 @@ export function MapPane({
           attributionControl={false}
         >
           <NavigationControl position="top-right" showCompass={false} />
-          {stores.map((store) => (
+          {visibleStores.map((store) => (
             <Marker key={store.storeId} longitude={store.lng} latitude={store.lat} anchor="center">
               <button
                 type="button"
