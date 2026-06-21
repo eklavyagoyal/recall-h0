@@ -167,3 +167,41 @@
     animation: none !important;
   }
 }
+
+/* ---------------- Console — unified cinematic control-room theme ---------------- */
+.console-root {
+  --p-bg: #06070a;
+  --p-bg-2: #0b0c12;
+  --p-surface: rgba(255, 255, 255, 0.026);
+  --p-surface-2: rgba(255, 255, 255, 0.05);
+  --p-line: rgba(255, 255, 255, 0.08);
+  --p-line-2: rgba(255, 255, 255, 0.16);
+  --p-fg: #edeef3;
+  --p-muted: #9395a3;
+  --p-faint: #5b5d6b;
+  --p-red: #ff4d4d;
+  --p-red-2: #ff7849;
+  --p-red-soft: rgba(255, 77, 77, 0.13);
+  --p-teal: #2fe0c0;
+  --p-teal-soft: rgba(47, 224, 192, 0.12);
+  --p-amber: #f6bb52;
+  background: var(--p-bg);
+  color: var(--p-fg);
+}
+.console-mono {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-feature-settings: "tnum" 1;
+}
+.console-kicker {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--p-faint);
+}
+.console-grid-bg {
+  background-image:
+    linear-gradient(var(--p-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--p-line) 1px, transparent 1px);
+  background-size: 40px 40px;
+}

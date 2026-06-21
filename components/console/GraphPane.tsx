@@ -37,7 +37,7 @@ function GraphSkeleton() {
     <div className="flex h-full min-h-[280px] w-full items-center justify-center bg-neutral-950">
       <div className="relative size-44 rounded-full border border-neutral-800">
         <div className="absolute inset-8 animate-pulse rounded-full border border-red-900/60" />
-        <div className="absolute left-1/2 top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-red-500 shadow-[0_0_16px_4px_rgba(239,68,68,0.45)]" />
+        <div className="absolute left-1/2 top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[var(--p-red)] shadow-[0_0_16px_4px_rgba(239,68,68,0.45)]" />
       </div>
     </div>
   );
@@ -47,7 +47,7 @@ function LoadingVeil() {
   return (
     <div className="pointer-events-none absolute inset-0 z-10 border border-red-950/40 bg-neutral-950/20">
       <div className="h-1 w-full overflow-hidden bg-neutral-900">
-        <div className="h-full w-1/2 animate-pulse bg-red-500/70" />
+        <div className="h-full w-1/2 animate-pulse bg-[var(--p-red)]/70" />
       </div>
     </div>
   );
@@ -199,7 +199,7 @@ export function GraphPane({
             width={size.width}
             height={size.height}
             graphData={{ nodes, links }}
-            backgroundColor="#0a0a0a"
+            backgroundColor="#06070a"
             cooldownTicks={80}
             d3VelocityDecay={0.3}
             nodeRelSize={4}
@@ -208,20 +208,20 @@ export function GraphPane({
               const id = Number(node.id);
               if (Number.isFinite(id)) onSelect?.({ kind: "lot", id, label: `Lot #${id}` });
             }}
-            nodeColor={(node) => (node.depth <= wave ? "#ef4444" : "#52525b")}
+            nodeColor={(node) => (node.depth <= wave ? "#ff4d4d" : "#3f414d")}
             linkLabel={(link) => link.transform}
             linkColor={(link) =>
-              link.depth <= wave ? "rgba(239,68,68,0.86)" : "rgba(113,113,122,0.32)"
+              link.depth <= wave ? "rgba(255,77,77,0.88)" : "rgba(147,149,163,0.26)"
             }
             linkWidth={(link) => (link.depth <= wave ? 1.7 : 0.5)}
             linkDirectionalParticles={(link) => (link.depth <= wave ? 2 : 0)}
             linkDirectionalParticleWidth={2}
-            linkDirectionalParticleColor={() => "#fecaca"}
+            linkDirectionalParticleColor={() => "#ffd5cf"}
           />
         )}
         {loading && <LoadingVeil />}
         {nodes.length > 0 && (
-          <span className="pointer-events-none absolute bottom-2 left-2 rounded bg-black/70 px-2 py-1 font-mono text-[10px] text-red-300">
+          <span className="pointer-events-none absolute bottom-2 left-2 rounded bg-black/70 px-2 py-1 font-mono text-[10px] text-[var(--p-red)]">
             igniting from {seedTlc}
           </span>
         )}

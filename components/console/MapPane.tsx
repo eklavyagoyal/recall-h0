@@ -37,7 +37,7 @@ function MapSkeleton() {
           <div key={index} className="border border-neutral-800" />
         ))}
       </div>
-      <div className="absolute left-1/2 top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 animate-ping rounded-full bg-red-500" />
+      <div className="absolute left-1/2 top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 animate-ping rounded-full bg-[var(--p-red)]" />
     </div>
   );
 }
@@ -86,8 +86,8 @@ export function MapPane({
                 onClick={() =>
                   onSelect?.({ kind: "store", id: store.storeId, label: store.name })
                 }
-                className="size-2.5 animate-pin-pulse rounded-full bg-red-500 ring-2 ring-red-500/30 transition-transform hover:scale-150 focus:scale-150 focus:outline-none focus:ring-red-200"
-                style={{ boxShadow: "0 0 7px 1px rgba(239,68,68,0.72)" }}
+                className="size-2.5 animate-pin-pulse rounded-full bg-[var(--p-red)] ring-2 ring-[var(--p-red)]/30 transition-transform hover:scale-150 focus:scale-150 focus:outline-none focus:ring-[var(--p-red)]"
+                style={{ boxShadow: "0 0 7px 1px rgba(255,77,77,0.72)" }}
               />
             </Marker>
           ))}

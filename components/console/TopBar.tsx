@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Clock3, FileSearch, Loader2, Search } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import type { TraceMeta } from "@/lib/types";
 import { AnimatedNumber } from "./polish";
+
 const SLA_MS = 24 * 60 * 60 * 1000;
 
 type TopBarProps = {
@@ -17,11 +17,22 @@ type TopBarProps = {
   onToggleInspector: () => void;
 };
 
-function Kpi({ label, value, accent }: { label: string; value: ReactNode; accent?: boolean }) {
+function Kpi({
+  label,
+  value,
+  tone = "fg",
+  testId,
+}: {
+  label: string;
+  value: ReactNode;
+  tone?: "fg" | "red" | "teal";
+  testId?: string;
+}) {
+  const color = tone === "red" ? "var(--p-red)" : tone === "teal" ? "var(--p-teal)" : "var(--p-fg)";
   return (
-    <div className="flex h-12 min-w-[88px] flex-col justify-center rounded-md border border-neutral-800 bg-neutral-900/90 px-3">
-      <span className="text-[10px] font-medium uppercase text-neutral-500">{label}</span>
-      <span className={`font-mono text-lg leading-tight ${accent ? "text-red-300" : "text-neutral-100"}`}>
+    <div className="flex h-12 min-w-[86px] flex-col justify-center rounded-lg border border-[var(--p-line)] bg-[var(--p-surface)] px-3">
+      <span className="console-kicker">{label}</span>
+      <span className="console-mono text-lg leading-tight" style={{ color }} data-testid={testId}>
         {value}
       </span>
     </div>
@@ -46,12 +57,15 @@ function SlaCountdown() {
   const urgent = remaining < 3_600_000;
 
   return (
-    <div className="flex h-12 min-w-[116px] flex-col justify-center rounded-md border border-amber-900/70 bg-amber-950/30 px-3">
-      <span className="flex items-center gap-1 text-[10px] font-medium uppercase text-amber-500/90">
+    <div className="flex h-12 min-w-[120px] flex-col justify-center rounded-lg border border-[var(--p-amber)]/30 bg-[var(--p-amber)]/[0.06] px-3">
+      <span className="console-kicker flex items-center gap-1 text-[var(--p-amber)]/90">
         <Clock3 className="size-3" aria-hidden="true" />
         FDA 24h SLA
       </span>
-      <span className={`font-mono text-lg leading-tight ${urgent ? "text-red-300" : "text-amber-300"}`}>
+      <span
+        className="console-mono text-lg leading-tight"
+        style={{ color: urgent ? "var(--p-red)" : "var(--p-amber)" }}
+      >
         {pad(hours)}:{pad(minutes)}:{pad(seconds)}
       </span>
     </div>
@@ -68,71 +82,88 @@ export function TopBar({
   onToggleInspector,
 }: TopBarProps) {
   return (
-    <header className="flex shrink-0 flex-wrap items-center gap-3 border-b border-neutral-800 bg-neutral-950 px-4 py-3">
-      <div className="mr-1 flex min-w-[190px] items-center gap-2">
-        <span className="size-2.5 rounded-full bg-red-500 shadow-[0_0_10px_3px_rgba(239,68,68,0.45)]" />
-        <h1 className="text-sm font-semibold text-neutral-100">Recall Outbreak Console</h1>
+    <header className="flex shrink-0 flex-wrap items-center gap-3 border-b border-[var(--p-line)] bg-[var(--p-bg)] px-4 py-3">
+      <div className="mr-1 flex min-w-[200px] items-center gap-2.5">
+        <span
+          className="size-2.5 rounded-full bg-[var(--p-red)]"
+          style={{ boxShadow: "0 0 12px 3px color-mix(in oklab, var(--p-red) 55%, transparent)" }}
+          aria-hidden="true"
+        />
+        <h1 className="text-sm font-semibold tracking-tight text-[var(--p-fg)]">
+          Recall <span className="text-[var(--p-faint)]">·</span>{" "}
+          <span className="text-[var(--p-muted)]">Outbreak Console</span>
+        </h1>
       </div>
 
       <form onSubmit={onSubmit} className="flex min-w-[280px] flex-1 items-center gap-2 sm:flex-none">
         <label className="sr-only" htmlFor="trace-tlc">
           Traceability Lot Code
         </label>
-        <input
-          id="trace-tlc"
-          data-testid="tlc-input"
-          value={tlc}
-          onChange={(event) => onTlcChange(event.target.value)}
-          placeholder="Traceability Lot Code"
-          className="h-9 min-w-0 flex-1 rounded-md border border-neutral-700 bg-neutral-900 px-3 font-mono text-sm text-neutral-100 outline-none transition-colors placeholder:text-neutral-600 focus:border-red-500 focus:ring-3 focus:ring-red-900/30 sm:w-72"
-        />
-        <Button
+        <div className="relative flex-1 sm:w-72">
+          <Search
+            className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--p-faint)]"
+            aria-hidden="true"
+          />
+          <input
+            id="trace-tlc"
+            data-testid="tlc-input"
+            value={tlc}
+            onChange={(event) => onTlcChange(event.target.value)}
+            placeholder="Traceability Lot Code"
+            spellCheck={false}
+            className="console-mono h-9 w-full min-w-0 rounded-lg border border-[var(--p-line-2)] bg-[var(--p-surface)] pl-9 pr-3 text-sm text-[var(--p-fg)] outline-none transition-colors placeholder:text-[var(--p-faint)] focus:border-[var(--p-red)] focus:ring-2 focus:ring-[var(--p-red-soft)]"
+          />
+        </div>
+        <button
           type="submit"
           data-testid="trace-button"
           disabled={loading}
-          className="h-9 bg-red-600 px-3 hover:bg-red-500"
+          className="flex h-9 cursor-pointer items-center gap-1.5 rounded-lg bg-[var(--p-red)] px-3.5 text-sm font-medium text-white transition-colors hover:bg-[var(--p-red-2)] disabled:cursor-wait disabled:opacity-70"
         >
           {loading ? (
-            <Loader2 className="animate-spin" aria-hidden="true" />
+            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
           ) : (
-            <Search aria-hidden="true" />
+            <Search className="size-4" aria-hidden="true" />
           )}
-          {loading ? "Tracing..." : "Trace"}
-        </Button>
+          {loading ? "Tracing…" : "Trace"}
+        </button>
       </form>
 
-      <Button
+      <button
         type="button"
-        variant={inspectorOpen ? "secondary" : "outline"}
-        className="h-9"
-        aria-pressed={inspectorOpen}
         onClick={onToggleInspector}
+        aria-pressed={inspectorOpen}
         data-testid="inspector-toggle"
+        className="flex h-9 cursor-pointer items-center gap-1.5 rounded-lg border px-3 text-sm transition-colors"
+        style={{
+          borderColor: inspectorOpen ? "var(--p-teal)" : "var(--p-line-2)",
+          color: inspectorOpen ? "var(--p-teal)" : "var(--p-fg)",
+          background: inspectorOpen ? "var(--p-teal-soft)" : "var(--p-surface)",
+        }}
       >
-        <FileSearch aria-hidden="true" />
+        <FileSearch className="size-4" aria-hidden="true" />
         Query Plan
-      </Button>
+      </button>
 
       <div className="ml-auto flex flex-wrap items-center gap-2">
         <Kpi
           label="Latency"
-          value={
-            <span data-testid="latency-badge">
-              {meta ? <><AnimatedNumber value={meta.latencyMs} /> ms</> : "-"}
-            </span>
-          }
+          tone="teal"
+          testId="latency-badge"
+          value={meta ? <><AnimatedNumber value={meta.latencyMs} /> ms</> : "—"}
         />
-        <Kpi label="Lots" value={meta ? <AnimatedNumber value={meta.lotCount} /> : "-"} />
+        <Kpi label="Lots" value={meta ? <AnimatedNumber value={meta.lotCount} /> : "—"} />
         <Kpi
           label="Stores"
-          value={
-            <span data-testid="store-count">
-              {meta ? <AnimatedNumber value={meta.storeCount} /> : "-"}
-            </span>
-          }
-          accent
+          tone="red"
+          testId="store-count"
+          value={meta ? <AnimatedNumber value={meta.storeCount} /> : "—"}
         />
-        <Kpi label="Units" value={meta ? <AnimatedNumber value={meta.totalUnits} /> : "-"} accent />
+        <Kpi
+          label="Units"
+          tone="red"
+          value={meta ? <AnimatedNumber value={meta.totalUnits} /> : "—"}
+        />
         <SlaCountdown />
       </div>
     </header>

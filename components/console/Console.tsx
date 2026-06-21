@@ -2,8 +2,9 @@
 
 import { useCallback, useState, useTransition, type FormEvent } from "react";
 import { AlertTriangle, RotateCcw, ShieldCheck } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { traceAction } from "@/app/actions/trace";
-import { Button } from "@/components/ui/button";
+import { SCENARIOS } from "@/lib/scenarios";
 import type { ConsoleSelection, TraceResult } from "@/lib/types";
 import { GraphPane } from "./GraphPane";
 import { IncidentInbox } from "./IncidentInbox";
@@ -11,6 +12,7 @@ import { IncidentRail } from "./IncidentRail";
 import { LineageDrawer } from "./LineageDrawer";
 import { MapPane } from "./MapPane";
 import { QueryInspector } from "./QueryInspector";
+import { ScenarioCycler } from "./ScenarioCycler";
 import { ScopeExport } from "./ScopeExport";
 import { TopBar } from "./TopBar";
 
@@ -24,13 +26,7 @@ type ConsoleProps = {
   traceSql: string;
 };
 
-export function Console({
-  initial,
-  initialTlc,
-  bootError,
-  bootCode,
-  traceSql,
-}: ConsoleProps) {
+export function Console({ initial, initialTlc, bootError, bootCode, traceSql }: ConsoleProps) {
   const [result, setResult] = useState<TraceResult | null>(initial);
   const [tlc, setTlc] = useState(initialTlc);
   const [status, setStatus] = useState<Status>(bootError ? "error" : "idle");
@@ -38,6 +34,7 @@ export function Console({
   const [errorCode, setErrorCode] = useState<string | undefined>(bootCode);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [selection, setSelection] = useState<ConsoleSelection | null>(null);
+  const [autoplay, setAutoplay] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const loading = status === "loading" || isPending;
@@ -73,6 +70,7 @@ export function Console({
   const onSubmit = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
+      setAutoplay(false);
       submitTlcTrace(tlc);
     },
     [submitTlcTrace, tlc],
@@ -88,7 +86,7 @@ export function Console({
   );
 
   return (
-    <main className="flex min-h-dvh flex-col overflow-x-hidden bg-neutral-950 text-neutral-100 lg:h-dvh lg:min-h-[720px] lg:overflow-hidden">
+    <main className="console-root flex min-h-dvh flex-col overflow-x-hidden lg:h-dvh lg:min-h-[760px] lg:overflow-hidden">
       <TopBar
         meta={result?.meta ?? null}
         tlc={tlc}
@@ -99,38 +97,62 @@ export function Console({
         onToggleInspector={() => setInspectorOpen((current) => !current)}
       />
 
+      <ScenarioCycler
+        scenarios={SCENARIOS}
+        activeTlc={tlc}
+        onPick={traceFromTlc}
+        loading={loading}
+        latencyMs={result?.meta.latencyMs ?? null}
+        autoplay={autoplay}
+        onToggleAutoplay={() => setAutoplay((current) => !current)}
+      />
+
+      {/* loading shimmer */}
+      <div className="h-[2px] shrink-0 overflow-hidden bg-transparent">
+        <AnimatePresence>
+          {loading && (
+            <motion.div
+              initial={{ x: "-100%" }}
+              animate={{ x: "100%" }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 1.1, repeat: Number.POSITIVE_INFINITY, ease: "easeInOut" }}
+              className="h-full w-2/5 bg-gradient-to-r from-transparent via-[var(--p-red)] to-transparent"
+            />
+          )}
+        </AnimatePresence>
+      </div>
+
       {status === "error" && (
         <div
           role="alert"
-          className="mx-4 mt-3 rounded-md border border-red-900/80 bg-red-950/50 px-4 py-3 text-sm text-red-100 shadow-lg shadow-red-950/20"
+          className="mx-4 mt-3 rounded-lg border border-[var(--p-red)]/40 bg-[var(--p-red-soft)] px-4 py-3 text-sm text-[var(--p-fg)]"
         >
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">
-              <AlertTriangle className="size-4 shrink-0 text-red-300" aria-hidden="true" />
+              <AlertTriangle className="size-4 shrink-0 text-[var(--p-red)]" aria-hidden="true" />
               <div className="min-w-0">
                 <p className="font-medium">{errorMsg ?? "Trace failed."}</p>
                 {errorCode && (
-                  <p className="mt-0.5 font-mono text-xs text-red-300/80">SQLSTATE {errorCode}</p>
+                  <p className="console-mono mt-0.5 text-xs text-[var(--p-red)]/80">SQLSTATE {errorCode}</p>
                 )}
               </div>
             </div>
-            <Button
+            <button
               type="button"
-              variant="destructive"
-              size="sm"
               onClick={() => submitTlcTrace(tlc)}
               disabled={loading}
+              className="flex cursor-pointer items-center gap-1.5 rounded-md bg-[var(--p-red)] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[var(--p-red-2)] disabled:opacity-70"
             >
-              <RotateCcw aria-hidden="true" />
+              <RotateCcw className="size-4" aria-hidden="true" />
               Retry
-            </Button>
+            </button>
           </div>
         </div>
       )}
 
       {status !== "error" && (
         <div className="relative flex-1 overflow-visible lg:min-h-0 lg:overflow-hidden">
-          <div className="grid min-h-[1720px] grid-cols-1 grid-rows-[420px_420px_880px] gap-px bg-neutral-800 lg:h-full lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_320px] lg:grid-rows-none lg:overflow-hidden">
+          <div className="grid min-h-[1720px] grid-cols-1 grid-rows-[420px_420px_880px] gap-px bg-[var(--p-line)] lg:h-full lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_340px] lg:grid-rows-none lg:overflow-hidden">
             <GraphPane
               edges={result?.edges ?? []}
               seedTlc={tlc}
@@ -138,7 +160,7 @@ export function Console({
               onSelect={setSelection}
             />
             <MapPane stores={result?.stores ?? []} loading={loading} onSelect={setSelection} />
-            <div className="grid min-h-0 grid-rows-[minmax(180px,1fr)_auto_minmax(190px,0.9fr)] bg-neutral-950">
+            <div className="grid min-h-0 grid-rows-[minmax(180px,1fr)_auto_minmax(190px,0.9fr)] bg-[var(--p-bg)]">
               <IncidentRail incidents={result?.incidents ?? []} loading={loading} />
               <ScopeExport trace={result} />
               <IncidentInbox onTrace={traceFromTlc} tracingTlc={loading ? tlc : null} />
@@ -146,18 +168,17 @@ export function Console({
           </div>
 
           {isClean && (
-            <section className="absolute inset-4 z-20 flex items-center justify-center rounded-md border border-emerald-900/70 bg-emerald-950/90 px-6 text-center shadow-2xl shadow-black/40 backdrop-blur-sm">
+            <section className="absolute inset-4 z-20 flex items-center justify-center rounded-xl border border-[var(--p-teal)]/40 bg-[var(--p-bg-2)]/95 px-6 text-center backdrop-blur-sm">
               <div className="max-w-xl">
-                <div className="mx-auto flex size-12 items-center justify-center rounded-full border border-emerald-700 bg-emerald-500/10 text-emerald-300">
+                <div className="mx-auto flex size-12 items-center justify-center rounded-full border border-[var(--p-teal)]/50 bg-[var(--p-teal-soft)] text-[var(--p-teal)]">
                   <ShieldCheck className="size-6" aria-hidden="true" />
                 </div>
-                <h2 className="mt-4 text-xl font-semibold text-emerald-200">
-                  Clean lot - no shelves at risk
+                <h2 className="mt-4 text-xl font-semibold text-[var(--p-teal)]">
+                  Clean lot — no shelves at risk
                 </h2>
-                <p className="mt-2 text-sm text-neutral-400">
-                  <span className="font-mono text-neutral-200">{tlc}</span> traced{" "}
-                  {result.meta.lotCount.toLocaleString("en-US")} lots and reached no affected
-                  stores.
+                <p className="mt-2 text-sm text-[var(--p-muted)]">
+                  <span className="console-mono text-[var(--p-fg)]">{tlc}</span> traced{" "}
+                  {result.meta.lotCount.toLocaleString("en-US")} lots and reached no affected stores.
                 </p>
               </div>
             </section>
@@ -165,17 +186,8 @@ export function Console({
         </div>
       )}
 
-      <QueryInspector
-        tlc={tlc}
-        sql={traceSql}
-        open={inspectorOpen}
-        onOpenChange={setInspectorOpen}
-      />
-      <LineageDrawer
-        selection={selection}
-        onClose={() => setSelection(null)}
-        onTraceLot={traceFromTlc}
-      />
+      <QueryInspector tlc={tlc} sql={traceSql} open={inspectorOpen} onOpenChange={setInspectorOpen} />
+      <LineageDrawer selection={selection} onClose={() => setSelection(null)} onTraceLot={traceFromTlc} />
     </main>
   );
 }
