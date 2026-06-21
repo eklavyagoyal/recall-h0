@@ -1,4 +1,5 @@
-import { DEMO_TLC, EMBED_DIM } from "@/lib/config";
+import { EMBED_DIM } from "@/lib/config";
+import { SCENARIOS } from "@/lib/scenarios";
 
 export type SupplierRow = {
   supplier_id: number;
@@ -106,6 +107,18 @@ function pick<T>(values: readonly T[]): T {
     throw new Error("Cannot pick from an empty array.");
   }
   return value;
+}
+
+/** A deterministic sample of `n` distinct store ids (the scenario blast radius). */
+function sampleStores(n: number): number[] {
+  if (n >= storeCount) return Array.from({ length: storeCount }, (_, i) => i + 1);
+  const set = new Set<number>();
+  let guard = 0;
+  while (set.size < n && guard < n * 25) {
+    guard++;
+    set.add(ri(1, storeCount));
+  }
+  return [...set];
 }
 
 const usAnchors = [
@@ -282,17 +295,34 @@ export function generate(): SeedData {
 
   const demoLayer = layerCount - 2;
   const finishedLayer = layerCount - 1;
-  const demoLotId = layerLots[demoLayer]?.[0];
-  if (!demoLotId) throw new Error("Failed to choose a demo lot.");
-  const demoLot = lots[demoLotId - 1];
-  if (!demoLot) throw new Error("Demo lot index missing.");
-  demoLot.tlc = DEMO_TLC;
-  demoLot.product_name = "Romaine Lettuce";
-  demoLot.lot_type = "finished";
+
+  // Curate the five demo scenarios: take the first lots of the demo layer and turn
+  // each into a named "finished" outbreak lot with its own product + pathogen.
+  const scenarioLots = SCENARIOS.map((scenario, i) => {
+    const id = layerLots[demoLayer]?.[i];
+    if (!id) throw new Error(`Failed to choose scenario lot ${i}.`);
+    const lot = lots[id - 1];
+    if (!lot) throw new Error(`Scenario lot ${id} index missing.`);
+    lot.tlc = scenario.tlc;
+    lot.product_name = scenario.product;
+    lot.lot_type = "finished";
+    return { scenario, lotId: id };
+  });
+  const scenarioChildren: number[][] = scenarioLots.map(() => []);
+  const demoLotId = scenarioLots[0]?.lotId;
+  if (!demoLotId) throw new Error("No scenario lots generated.");
+
+  // Keep each scenario lot's downstream graph isolated so its blast radius is exactly
+  // its curated store set: scenario lots get NO random outgoing edges (only the
+  // explicit children added below), and those children are excluded from random fill.
+  const scenarioLotIdSet = new Set(scenarioLots.map((entry) => entry.lotId));
+  const scenarioChildSet = new Set<number>();
+  let allowScenarioEdges = false;
 
   const edgeKey = new Set<string>();
   const addEdge = (parent: number, child: number) => {
     if (parent === child) return;
+    if (!allowScenarioEdges && scenarioLotIdSet.has(parent)) return;
     if ((layerOf[parent] ?? 0) >= (layerOf[child] ?? 0)) return;
     const key = `${parent}:${child}`;
     if (edgeKey.has(key)) return;
@@ -314,9 +344,16 @@ export function generate(): SeedData {
     }
   }
 
-  for (const child of (layerLots[finishedLayer] ?? []).slice(0, 80)) {
-    addEdge(demoLotId, child);
-  }
+  allowScenarioEdges = true;
+  scenarioLots.forEach(({ scenario, lotId }, i) => {
+    const start = i * 120;
+    for (const child of (layerLots[finishedLayer] ?? []).slice(start, start + scenario.children)) {
+      addEdge(lotId, child);
+      scenarioChildren[i]?.push(child);
+      scenarioChildSet.add(child);
+    }
+  });
+  allowScenarioEdges = false;
 
   outer: for (let layer = 0; layer < layerCount - 1; layer++) {
     for (const parent of layerLots[layer] ?? []) {
@@ -361,20 +398,24 @@ export function generate(): SeedData {
     return true;
   };
 
-  for (let storeId = 1; storeId <= storeCount; storeId++) {
-    addShipment(demoLotId, storeId);
-  }
-
-  for (const child of (layerLots[finishedLayer] ?? []).slice(0, 80)) {
-    for (let index = 0; index < 35; index++) {
-      addShipment(child, ri(1, storeCount));
+  // Each scenario lot ships to its own blast radius; its children ship only WITHIN
+  // that set, so the affected-store count stays controlled and distinct per scenario.
+  scenarioLots.forEach(({ scenario, lotId }, i) => {
+    const storeIds = sampleStores(scenario.targetStores);
+    for (const storeId of storeIds) addShipment(lotId, storeId);
+    for (const child of scenarioChildren[i] ?? []) {
+      for (let k = 0; k < 10; k++) {
+        const storeId = storeIds[Math.floor(rand() * storeIds.length)];
+        if (storeId !== undefined) addShipment(child, storeId);
+      }
     }
-  }
+  });
 
+  const fillLots = finishedLots.filter((id) => !scenarioChildSet.has(id));
   let shipmentGuard = 0;
   while (shipments.length < targetShipments && shipmentGuard < targetShipments * 4) {
     shipmentGuard++;
-    addShipment(pick(finishedLots), ri(1, storeCount));
+    addShipment(pick(fillLots), ri(1, storeCount));
   }
 
   const inventoryKey = new Set<string>();
@@ -392,16 +433,15 @@ export function generate(): SeedData {
     }
   }
 
-  const demoPathogen = "Listeria monocytogenes";
   for (let id = 1; id <= incidentCount; id++) {
-    const tiedToDemo = rand() < 0.12;
-    const pathogen = tiedToDemo ? demoPathogen : pick(pathogens);
-    const product = tiedToDemo ? demoLot.product_name : pick(products);
+    const tied = rand() < 0.16 ? scenarioLots[Math.floor(rand() * scenarioLots.length)] : undefined;
+    const pathogen = tied ? tied.scenario.pathogen : pick(pathogens);
+    const product = tied ? tied.scenario.product : pick(products);
     incidents.push({
       incident_id: id,
       reported_at: new Date(baseTime + ri(0, 150) * 24 * 3_600_000).toISOString(),
       raw_text: incidentText(pathogen, product),
-      suspected_lot_id: tiedToDemo ? demoLotId : rand() < 0.6 ? ri(1, lotId) : null,
+      suspected_lot_id: tied ? tied.lotId : rand() < 0.6 ? ri(1, lotId) : null,
       pathogen: rand() < 0.85 ? pathogen : null,
     });
   }

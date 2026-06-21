@@ -8,12 +8,12 @@ const DEMO_TLC = "PRD-OUTBREAK-0001";
 
 /* Verified baked result from the live run — renders instantly so the section is never empty. */
 const BAKED = {
-  latencyMs: 305,
+  latencyMs: 251,
   storeCount: 1400,
   states: 38,
-  totalUnits: 2583144,
-  lotCount: 83,
-  edgeCount: 82,
+  totalUnits: 674285,
+  lotCount: 81,
+  edgeCount: 80,
   incidents: [
     { text: "FDA alert: outbreak of gastrointestinal illness linked to Romaine Lettuce. Symptoms consistent with Listeria monocytogenes.", score: 0.651 },
     { text: "FDA alert: outbreak linked to Romaine Lettuce. Pathogen panel positive for Listeria monocytogenes.", score: 0.636 },
