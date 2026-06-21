@@ -4,27 +4,30 @@ import { useEffect, useRef, useState } from "react";
 
 export function useCountUp(value: number, durationMs = 700): number {
   const [display, setDisplay] = useState(value);
-  const fromRef = useRef(value);
+  // The latest value actually on screen. Each new target eases from HERE, so a re-target
+  // that interrupts an in-flight tween (e.g. a value that changes faster than durationMs)
+  // continues smoothly from the current number instead of snapping back to a stale origin.
+  const displayRef = useRef(value);
   const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
+    const from = displayRef.current;
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduceMotion || fromRef.current === value) {
-      fromRef.current = value;
+    if (reduceMotion || from === value) {
+      displayRef.current = value;
       const id = window.setTimeout(() => setDisplay(value), 0);
       return () => window.clearTimeout(id);
     }
 
-    const from = fromRef.current;
     const startedAt = performance.now();
     const tick = (now: number) => {
       const progress = Math.min(1, (now - startedAt) / durationMs);
       const eased = 1 - (1 - progress) ** 3;
-      setDisplay(Math.round(from + (value - from) * eased));
+      const next = Math.round(from + (value - from) * eased);
+      displayRef.current = next;
+      setDisplay(next);
       if (progress < 1) {
         rafRef.current = window.requestAnimationFrame(tick);
-      } else {
-        fromRef.current = value;
       }
     };
 

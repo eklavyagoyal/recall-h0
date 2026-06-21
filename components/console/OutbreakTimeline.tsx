@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { Pause, Play } from "lucide-react";
 import type { AffectedStore } from "@/lib/types";
-import { AnimatedNumber, distinctStates, fmtDate } from "./polish";
+import { distinctStates, fmtDate } from "./polish";
 
 export type OutbreakTimelineProps = {
   stores: AffectedStore[];   // affected stores; each has arrivedAt (ISO string), address, units, name
@@ -177,10 +177,11 @@ export function OutbreakTimeline(props: OutbreakTimelineProps) {
       <div className="flex shrink-0 flex-col justify-center">
         <span className="console-kicker">Reached</span>
         <span className="console-mono text-sm leading-tight text-[var(--p-fg)]">
-          <AnimatedNumber
-            value={reachedCount}
-            className={reachedCount > 0 ? "text-[var(--p-red)]" : "text-[var(--p-teal)]"}
-          />
+          {/* Rendered raw, not via count-up: during replay this value changes every frame,
+              which IS the animation — a count-up tween on top would only lag the playhead. */}
+          <span className={reachedCount > 0 ? "text-[var(--p-red)]" : "text-[var(--p-teal)]"}>
+            {reachedCount.toLocaleString("en-US")}
+          </span>
           <span className="text-[var(--p-faint)]"> / {stores.length} stores</span>
           <span className="text-[var(--p-faint)]"> · </span>
           <span className="text-[var(--p-teal)]">{stateCount}</span>
