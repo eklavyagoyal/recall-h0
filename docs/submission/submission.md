@@ -133,6 +133,6 @@ Recall collapses that into **one query**: paste the lot, and the exact affected 
 | **AWS database** | **Amazon Aurora PostgreSQL** (Serverless v2, engine 16.6, `us-east-1`, cluster `recall-aurora`; pgvector 0.8 HNSW + PostGIS) |
 | **Published Vercel project link (live)** | https://recall-h0.vercel.app |
 | **Vercel Team ID** | `team_vr98mdXQJyxKN5yAtBuO48T8` |
-| **GitHub** | https://github.com/eklavyagoyal/recall-h0 (visibility flip pending owner confirmation before final submission) |
+| **GitHub** | https://github.com/eklavyagoyal/recall-h0 (public) |
 
 **v0 status:** Official H0 FAQ says v0 is recommended for speed, not required; the requirement is a deployed Vercel frontend. Recall is deployed on Vercel with a hand-built Next.js 16 interface around the Aurora query spine.
