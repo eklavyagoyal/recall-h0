@@ -23,6 +23,7 @@ type QueryInspectorProps = {
   asOf?: string | null;
 };
 
+const EXPLAIN_CLIENT_TIMEOUT_MS = 25_000;
 const allTags: ExplainTag[] = ["recursive-union", "hnsw", "gist"];
 
 type TagMeta = {
@@ -70,15 +71,20 @@ export function QueryInspector({
   const [error, setError] = useState<string | null>(null);
   const [elapsedMs, setElapsedMs] = useState<number | null>(null);
   const requestId = useRef(0);
+  const activeExplainRef = useRef<AbortController | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const reduceMotion = useReducedMotion();
 
   const runExplain = useCallback(async () => {
     if (!tlc.trim()) return;
     const currentRequest = ++requestId.current;
+    activeExplainRef.current?.abort();
+    const controller = new AbortController();
+    activeExplainRef.current = controller;
     setLoading(true);
     setError(null);
     const startedAt = performance.now();
+    const timeoutId = window.setTimeout(() => controller.abort(), EXPLAIN_CLIENT_TIMEOUT_MS);
 
     try {
       const response = await fetch("/api/explain", {
@@ -86,6 +92,7 @@ export function QueryInspector({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tlc, asOf }),
         cache: "no-store",
+        signal: controller.signal,
       });
 
       if (currentRequest !== requestId.current) return;
@@ -103,8 +110,14 @@ export function QueryInspector({
       setElapsedMs(Math.round(performance.now() - startedAt));
     } catch (caught) {
       if (currentRequest !== requestId.current) return;
-      setError(caught instanceof Error ? caught.message : String(caught));
+      if (caught instanceof DOMException && caught.name === "AbortError") {
+        setError("EXPLAIN timed out after 25 seconds. Retry when Aurora is warm.");
+      } else {
+        setError(caught instanceof Error ? caught.message : String(caught));
+      }
     } finally {
+      window.clearTimeout(timeoutId);
+      if (activeExplainRef.current === controller) activeExplainRef.current = null;
       if (currentRequest === requestId.current) setLoading(false);
     }
   }, [tlc, asOf]);
@@ -112,7 +125,11 @@ export function QueryInspector({
   useEffect(() => {
     if (!open) return;
     const id = window.setTimeout(() => void runExplain(), 0);
-    return () => window.clearTimeout(id);
+    return () => {
+      requestId.current += 1;
+      window.clearTimeout(id);
+      activeExplainRef.current?.abort();
+    };
   }, [open, runExplain]);
 
   // Drawer affordances: focus the close button on open, Escape to dismiss.

@@ -47,28 +47,53 @@ Expected: `recall-postgres` is healthy, migrations are idempotent, and seed volu
 pnpm bench
 ```
 
-Expected: `PRD-OUTBREAK-0001` returns about 83 lots, 82 edges, and 1,400 stores with warm p50
+Expected: `PRD-OUTBREAK-0001` returns about 81 lots, 80 edges, and 1,400 stores with warm p50
 well under the generous 5s test ceiling.
 
-## 5. Green Gate
+## 5. DB-Free Green Gate
+
+```bash
+pnpm verify
+```
+
+Expected: typecheck, lint, and the default DB-free vitest suite exit 0 without local Postgres
+running. `pnpm test` excludes `*.integration.test.ts`; the integration suite is gated separately
+for a seeded database.
+
+Equivalent expanded commands:
 
 ```bash
 pnpm typecheck
 pnpm lint
 pnpm test
+```
+
+Expected: all commands exit 0. The default DB-free suite covers deterministic embeddings, SQL
+guards, pool config, API error shapes, health/ready degraded behavior, page boot fallback,
+serialization retry/backoff, embedding degraded mode, admission control, metrics, observability,
+and SLA anchoring.
+
+## 6. Production Build
+
+```bash
 pnpm build
 ```
 
-Expected: all commands exit 0. `pnpm test` includes adversarial cycle, clean lot, latency,
-embedding determinism, SQL guard, parser, and API contract tests.
+Expected: the Next.js production build exits 0.
 
-## 6. App
+## 7. Seeded Integration
+
+These commands require a seeded local database and are intentionally outside the DB-free gate:
 
 ```bash
-pnpm dev
+pnpm test:integration
+pnpm bench
 ```
 
-If port 3000 is occupied, use:
+Expected: `PRD-OUTBREAK-0001` returns about 81 lots, 80 edges, and 1,400 stores with warm p50
+well under the generous 5s test ceiling.
+
+## 8. App
 
 ```bash
 pnpm exec next dev --turbopack --port 3002
@@ -84,7 +109,7 @@ Manual checklist:
 - Trace a random nonexistent TLC and confirm the clean state renders without an error.
 - Export FDA record and confirm JSON/CSV downloads are created from live rows.
 
-## 7. Optional Smoke
+## 9. Optional Smoke
 
 ```bash
 pnpm test:smoke

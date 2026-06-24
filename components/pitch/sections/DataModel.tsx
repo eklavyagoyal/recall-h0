@@ -3,7 +3,6 @@
 import { motion, useInView, useReducedMotion } from "motion/react";
 import { useRef } from "react";
 import {
-  CountUp,
   EASE,
   Glow,
   GridBackdrop,

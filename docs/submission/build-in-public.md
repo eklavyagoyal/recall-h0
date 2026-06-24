@@ -29,7 +29,7 @@ WITH RECURSIVE contaminated AS (
   UNION ALL
   SELECT ll.child_lot_id, c.depth + 1, c.path || ll.child_lot_id
   FROM contaminated c JOIN lot_links ll ON ll.parent_lot_id = c.lot_id
-  WHERE c.depth < 64 AND ll.child_lot_id <> ALL(c.path)
+  WHERE c.depth < 12 AND ll.child_lot_id <> ALL(c.path)
 ),
 edges AS (
   SELECT DISTINCT ll.parent_lot_id, ll.child_lot_id, ll.transform_event
@@ -74,13 +74,13 @@ SELECT (SELECT count(*) FROM contaminated) AS lot_count,
 
 Three index paths in one statement:
 
-1. **`contaminated` — recursive CTE.** Walks the FK-constrained supply DAG over the `lot_links` edge table. The recursive term carries a `path` array and a `depth < 64` guard, and the `ll.child_lot_id <> ALL(c.path)` predicate is the cycle guard — so even on a 250k-edge graph the traversal can't loop or go quadratic.
+1. **`contaminated` — recursive CTE.** Walks the FK-constrained supply DAG over the `lot_links` edge table. The recursive term carries a `path` array and a `depth < 12` guard, and the `ll.child_lot_id <> ALL(c.path)` predicate is the cycle guard — so even on a 250k-edge graph the traversal can't loop or go quadratic.
 2. **`spatial_stores` — PostGIS.** `ST_DWithin` + a `<->` KNN order over `stores.geom`, served by a GiST geography index, for the affected-store map.
 3. **`similar_incidents` — pgvector.** `ORDER BY i.embedding <=> $2::vector LIMIT 5` — a cosine-distance ANN search served by an HNSW index, surfacing the five most similar prior incidents.
 
 `$2` is the query embedding. Note: we default the semantic query to the traced lot's **product name** (e.g. "Romaine Lettuce"), not the opaque lot code — one indexed lookup on `lots.tlc` — so the vector search surfaces incidents about the same product. On the demo lot that returns real hits like *"FDA alert: outbreak ... linked to Romaine Lettuce. Pathogen panel positive for Listeria monocytogenes"* at cosine score ~0.65.
 
-Demo: `PRD-OUTBREAK-0001` (Romaine Lettuce) traces to **1,400 affected stores across 38 US states, 2,583,144 units, 83 contaminated lots / 82 edges**.
+Demo: `PRD-OUTBREAK-0001` (Romaine Lettuce) traces to **1,400 affected stores across 38 US states, 674,285 units, 81 contaminated lots / 80 edges**.
 
 ---
 

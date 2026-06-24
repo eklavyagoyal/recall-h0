@@ -3,6 +3,7 @@ import { EMBED_DIM, TRACE_MAX_DEPTH } from "@/lib/config";
 import { pool } from "@/lib/db/pool";
 import { recordSample } from "@/lib/db/queries/metrics";
 import { embed, toVectorLiteral as toPgVectorLiteral } from "@/lib/embeddings";
+import { logError, logWarn, type LogContext } from "@/lib/observability/log";
 import type { AffectedStore, Edge, SimilarIncident, TraceResult } from "@/lib/types";
 
 export const TRACE_SQL = `WITH RECURSIVE contaminated AS (
@@ -91,6 +92,9 @@ export type RunTraceOptions = {
   asOf?: string | null;
   queryEmbedding?: number[];
   queryText?: string;
+  retryDelay?: (ms: number) => Promise<void>;
+  retryRandom?: () => number;
+  logContext?: LogContext;
 };
 
 export function toVectorLiteral(vector: number[]): string {
@@ -100,7 +104,7 @@ export function toVectorLiteral(vector: number[]): string {
   return toPgVectorLiteral(vector);
 }
 
-async function embeddingFor(tlc: string, options: RunTraceOptions): Promise<number[]> {
+export async function embeddingFor(tlc: string, options: RunTraceOptions = {}): Promise<number[]> {
   if (options.queryEmbedding) return options.queryEmbedding;
   // Default the semantic query to the traced lot's product name (e.g. "Romaine Lettuce")
   // rather than the opaque lot code, so the pgvector search surfaces incidents about the
@@ -113,16 +117,48 @@ async function embeddingFor(tlc: string, options: RunTraceOptions): Promise<numb
     );
     queryText = rows[0]?.product_name ?? tlc;
   }
-  const vectors = await embed([queryText]);
+  let vectors: number[][];
+  try {
+    vectors = await embed([queryText]);
+  } catch (error) {
+    if (!isEmbeddingUnavailable(error)) throw error;
+    logError(options.logContext, "embedding.degraded", error, {
+      dependency: "bedrock",
+      failureClass: "dependency_error",
+    });
+    return new Array(EMBED_DIM).fill(0);
+  }
   const first = vectors[0];
   if (!first) throw new Error("Embedding provider returned no vectors.");
   return first;
+}
+
+export function serializationRetryDelayMs(attempt: number, random: () => number = Math.random): number {
+  const base = 40 * 2 ** attempt;
+  return Math.round(base + random() * base);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isSerializationFailure(error: unknown): boolean {
+  return (error as { code?: string }).code === "40001";
+}
+
+function isEmbeddingUnavailable(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (error.name === "EmbeddingUnavailableError" || "dependency" in error)
+  );
 }
 
 export async function runTrace(tlc: string, options: RunTraceOptions = {}): Promise<TraceResult> {
   const asOf = options.asOf ?? null;
   const embeddingLiteral = toVectorLiteral(await embeddingFor(tlc, options));
   const maxRetries = 3;
+  const retryDelay = options.retryDelay ?? sleep;
+  const retryRandom = options.retryRandom ?? Math.random;
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     const client = await pool.connect();
@@ -141,7 +177,16 @@ export async function runTrace(tlc: string, options: RunTraceOptions = {}): Prom
       return mapTraceRow(row, latencyMs, asOf);
     } catch (error) {
       await client.query("ROLLBACK").catch(() => {});
-      if ((error as { code?: string }).code === "40001" && attempt < maxRetries - 1) {
+      if (isSerializationFailure(error) && attempt < maxRetries - 1) {
+        const delayMs = serializationRetryDelayMs(attempt, retryRandom);
+        logWarn(options.logContext, "trace.retry", {
+          dependency: "aurora_postgres",
+          failureClass: "dependency_error",
+          sqlstate: "40001",
+          retryCount: attempt + 1,
+          delayMs,
+        });
+        await retryDelay(delayMs);
         continue;
       }
       throw error;

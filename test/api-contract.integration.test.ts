@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   ErrorResponse,
   ExplainResponse,
+  HealthResponse,
   IncidentsResponse,
   LineageResponse,
   MetricsResponse,
+  ReadyResponse,
   TraceResponse,
 } from "./helpers/contracts";
 import { firstSeedStoreId } from "./helpers/db";
@@ -58,6 +60,16 @@ async function callRoute(
     }
     case "/api/metrics": {
       const { GET } = await import("@/app/api/metrics/route");
+      const response = await GET(request);
+      return { status: response.status, json: await response.json() };
+    }
+    case "/api/health": {
+      const { GET } = await import("@/app/api/health/route");
+      const response = await GET(request);
+      return { status: response.status, json: await response.json() };
+    }
+    case "/api/ready": {
+      const { GET } = await import("@/app/api/ready/route");
       const response = await GET(request);
       return { status: response.status, json: await response.json() };
     }
@@ -126,5 +138,17 @@ describe("API contracts against seeded DB", () => {
     expect(status).toBe(200);
     const parsed = MetricsResponse.parse(json);
     for (const sample of parsed.samples) expect(sample.latencyMs).toBeGreaterThan(0);
+  });
+
+  it("GET /api/health is liveness only", async () => {
+    const { status, json } = await callRoute("/api/health", { method: "GET" });
+    expect(status).toBe(200);
+    HealthResponse.parse(json);
+  });
+
+  it("GET /api/ready proves DB readiness", async () => {
+    const { status, json } = await callRoute("/api/ready", { method: "GET" });
+    expect(status).toBe(200);
+    ReadyResponse.parse(json);
   });
 });

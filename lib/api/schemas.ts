@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { logError, type LogContext } from "@/lib/observability/log";
 
 export const tlcSchema = z
   .string()
@@ -63,11 +64,58 @@ export function invalidJson(): Response {
   );
 }
 
-export function serverError(error: unknown): Response {
+export function serverError(error: unknown, context?: LogContext): Response {
   const code =
     error && typeof error === "object" && "code" in error
       ? String((error as { code: unknown }).code)
       : null;
-  console.error("[api] handler error", error);
+  logError(context, "api.handler_error", error, {
+    dependency: "aurora_postgres",
+    failureClass: "dependency_error",
+    sqlstate: code,
+  });
   return Response.json({ error: "trace_failed", sqlstate: code }, { status: 500 });
+}
+
+function errorCode(error: unknown): string | null {
+  return error && typeof error === "object" && "code" in error
+    ? String((error as { code: unknown }).code)
+    : null;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+export function isTimeoutLike(error: unknown): boolean {
+  const code = errorCode(error);
+  if (code && ["57014", "ETIMEDOUT", "ETIMEOUT", "ECONNABORTED"].includes(code)) return true;
+  return /timeout|timed out|statement timeout|connection terminated due to connection timeout/i.test(
+    errorMessage(error),
+  );
+}
+
+export function traceFailure(error: unknown, context?: LogContext): Response {
+  const code = errorCode(error);
+  if (isTimeoutLike(error)) {
+    logError(context, "trace.timeout", error, {
+      dependency: "aurora_postgres",
+      failureClass: "dependency_timeout",
+      sqlstate: code,
+    });
+    return Response.json(
+      {
+        error: "trace_timeout",
+        failureClass: "dependency_timeout",
+        dependency: "aurora_postgres",
+        retryable: true,
+        sqlstate: code,
+        message:
+          "Aurora is scaling from zero ACU. Retry shortly; the database wake-up is bounded and did not hang.",
+      },
+      { status: 504, headers: { "Cache-Control": "no-store" } },
+    );
+  }
+
+  return serverError(error, context);
 }

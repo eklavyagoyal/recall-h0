@@ -1,11 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useTransition, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { AlertTriangle, RotateCcw, ShieldCheck } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { traceAction } from "@/app/actions/trace";
 import { SCENARIOS } from "@/lib/scenarios";
-import type { ConsoleSelection, TraceResult } from "@/lib/types";
+import type { ConsoleSelection, IncidentsResult, TraceResult } from "@/lib/types";
 import { GraphPane } from "./GraphPane";
 import { IncidentInbox } from "./IncidentInbox";
 import { IncidentRail } from "./IncidentRail";
@@ -17,7 +16,17 @@ import { ScenarioCycler } from "./ScenarioCycler";
 import { ScopeExport } from "./ScopeExport";
 import { TopBar } from "./TopBar";
 
-type Status = "idle" | "loading" | "error";
+type Status = "idle" | "loading" | "warming" | "error";
+
+type TraceErrorBody = {
+  error?: string;
+  message?: string;
+  sqlstate?: string | null;
+  failureClass?: string;
+};
+
+const WARMING_NOTICE_MS = 1500;
+const TRACE_CLIENT_TIMEOUT_MS = 29_000;
 
 // Earliest / latest moment the contamination reached a store, in epoch ms.
 // Drives the Outbreak Time-Travel scrubber. Returns nulls when there's no spread.
@@ -54,10 +63,38 @@ export function Console({ initial, initialTlc, bootError, bootCode, traceSql }: 
   const [cutoff, setCutoff] = useState<number>(() => arrivalRange(initial).maxT ?? 0);
   const [playing, setPlaying] = useState(false);
   const [prevResult, setPrevResult] = useState(initial);
-  const [isPending, startTransition] = useTransition();
+  const [reportedAtByTlc, setReportedAtByTlc] = useState<Record<string, string>>({});
+  const activeTraceRef = useRef<AbortController | null>(null);
 
-  const loading = status === "loading" || isPending;
+  const loading = status === "loading" || status === "warming";
   const timeline = useMemo(() => arrivalRange(result), [result]);
+  const currentReportReportedAt = reportedAtByTlc[tlc] ?? null;
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const response = await fetch("/api/incidents?limit=500", {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        if (!response.ok) return;
+        const data = (await response.json()) as IncidentsResult;
+        const latestByTlc: Record<string, string> = {};
+        for (const incident of data.incidents) {
+          if (!incident.suspectedTlc) continue;
+          const current = latestByTlc[incident.suspectedTlc];
+          if (!current || Date.parse(incident.reportedAt) > Date.parse(current)) {
+            latestByTlc[incident.suspectedTlc] = incident.reportedAt;
+          }
+        }
+        setReportedAtByTlc(latestByTlc);
+      } catch (caught) {
+        if (caught instanceof DOMException && caught.name === "AbortError") return;
+      }
+    })();
+    return () => controller.abort();
+  }, []);
 
   // When a new trace lands, snap the playhead to the end (show everything) and stop any
   // replay — done during render so cutoff is never stale or non-finite for even one frame
@@ -118,22 +155,63 @@ export function Console({ initial, initialTlc, bootError, bootCode, traceSql }: 
     const value = nextTlc.trim();
     if (!value) return;
 
+    activeTraceRef.current?.abort();
+    const controller = new AbortController();
+    activeTraceRef.current = controller;
+
     setStatus("loading");
     setErrorMsg(null);
     setErrorCode(undefined);
 
-    startTransition(() => {
-      void traceAction({ tlc: value }).then((response) => {
+    let complete = false;
+    const warmingId = window.setTimeout(() => {
+      if (!complete && activeTraceRef.current === controller) setStatus("warming");
+    }, WARMING_NOTICE_MS);
+    const abortId = window.setTimeout(() => {
+      if (activeTraceRef.current === controller) controller.abort();
+    }, TRACE_CLIENT_TIMEOUT_MS);
+
+    void (async () => {
+      try {
+        const response = await fetch("/api/trace", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tlc: value }),
+          cache: "no-store",
+          signal: controller.signal,
+        });
+
+        if (activeTraceRef.current !== controller) return;
+
+        const body = (await response.json().catch(() => ({}))) as TraceResult | TraceErrorBody;
         if (response.ok) {
-          setResult(response.data);
+          setResult(body as TraceResult);
           setStatus("idle");
-          return;
+        } else {
+          const errorBody = body as TraceErrorBody;
+          setStatus("error");
+          setErrorMsg(traceErrorMessage(errorBody, response.status));
+          setErrorCode(errorBody.sqlstate ?? undefined);
         }
+      } catch (caught) {
+        if (activeTraceRef.current !== controller) return;
         setStatus("error");
-        setErrorMsg(response.error);
-        setErrorCode(response.code);
-      });
-    });
+        if (caught instanceof DOMException && caught.name === "AbortError") {
+          setErrorMsg(
+            "Trace timed out after 29 seconds. Aurora may still be scaling from zero; retry shortly.",
+          );
+          setErrorCode(undefined);
+        } else {
+          setErrorMsg(caught instanceof Error ? caught.message : "Trace failed.");
+          setErrorCode(undefined);
+        }
+      } finally {
+        complete = true;
+        window.clearTimeout(warmingId);
+        window.clearTimeout(abortId);
+        if (activeTraceRef.current === controller) activeTraceRef.current = null;
+      }
+    })();
   }, []);
 
   const onSubmit = useCallback(
@@ -159,6 +237,7 @@ export function Console({ initial, initialTlc, bootError, bootCode, traceSql }: 
       <TopBar
         meta={result?.meta ?? null}
         tlc={tlc}
+        reportReportedAt={currentReportReportedAt}
         onTlcChange={setTlc}
         onSubmit={onSubmit}
         loading={loading}
@@ -190,6 +269,18 @@ export function Console({ initial, initialTlc, bootError, bootCode, traceSql }: 
           )}
         </AnimatePresence>
       </div>
+
+      {status === "warming" && (
+        <div
+          role="status"
+          className="mx-4 mt-3 rounded-lg border border-[var(--p-gold)]/45 bg-[var(--p-gold)]/10 px-4 py-3 text-sm text-[var(--p-fg)]"
+        >
+          <p className="font-medium">
+            Aurora is scaling from zero ACU (~10-15s) - you&apos;re watching $0-idle-cost
+            infrastructure wake up.
+          </p>
+        </div>
+      )}
 
       {status === "error" && (
         <div
@@ -277,4 +368,13 @@ export function Console({ initial, initialTlc, bootError, bootCode, traceSql }: 
       <LineageDrawer selection={selection} onClose={() => setSelection(null)} onTraceLot={traceFromTlc} />
     </main>
   );
+}
+
+function traceErrorMessage(body: TraceErrorBody, status: number): string {
+  if (body.message) return body.message;
+  if (body.error === "trace_timeout") {
+    return "Aurora did not answer before the trace deadline. Retry shortly.";
+  }
+  if (body.error === "invalid_input") return "Enter a valid Traceability Lot Code.";
+  return `Trace failed with HTTP ${status}. Retry when the database is available.`;
 }

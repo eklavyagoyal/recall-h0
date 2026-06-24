@@ -130,10 +130,15 @@ export default function LiveDemo() {
 
   useEffect(() => {
     if (!inView || phase !== "idle") return;
-    setPhase("tracing");
-    void runLive();
+    const start = setTimeout(() => {
+      setPhase("tracing");
+      void runLive();
+    }, 0);
     const t = setTimeout(() => setPhase("done"), 1700);
-    return () => clearTimeout(t);
+    return () => {
+      clearTimeout(start);
+      clearTimeout(t);
+    };
   }, [inView, phase, runLive]);
 
   const rerun = useCallback(() => {

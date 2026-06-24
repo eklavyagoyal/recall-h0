@@ -8,7 +8,7 @@
 
 **The real-world problem.** When a food product is found contaminated — say E. coli in a batch of romaine lettuce — the company must answer one urgent question *immediately*: **"Which exact store shelves have product from this bad batch, right now?"** Today that takes **hours to days** of spreadsheets, supplier emails, and warehouse lookups — and while people dig, contaminated product stays on shelves. The FDA's **FSMA-204** rule will soon require traceability records **within 24 hours**, so there's a real, dated, budgeted buyer.
 
-**What Recall does.** You paste one **Traceability Lot Code** (e.g. `PRD-OUTBREAK-0001`, a batch of Romaine Lettuce) and in **~300 ms** it traces the batch **backward** to its suppliers and **forward** through every transformation and shipment to **every affected store** (demo: 1,400 stores across 38 states, 2,583,144 units), maps them, and surfaces **similar past incidents**.
+**What Recall does.** You paste one **Traceability Lot Code** (e.g. `PRD-OUTBREAK-0001`, a batch of Romaine Lettuce) and in **~300 ms** it traces the batch **backward** to its suppliers and **forward** through every transformation and shipment to **every affected store** (demo: 1,400 stores across 38 states, 674,285 units), maps them, and surfaces **similar past incidents**.
 
 **The one idea.** The entire investigation is **a single database query**. The DB isn't storage — it's the detective. The frontend just lets you *watch the query think*.
 
@@ -49,7 +49,7 @@ One subtlety we solved: at demo data volume Aurora's planner preferred a sequent
 
 A Next.js App Router app (React Server Components) renders the result as a control-room dashboard:
 
-- **TopBar** — live query latency, affected-store count, total units, and a 24-hour FDA SLA countdown.
+- **TopBar** — live query latency, affected-store count, total units, and an FDA 24-hour SLA clock anchored to the latest matching incident report.
 - **Graph pane** — a force-directed supply graph that **ignites red** along contaminated edges.
 - **Map pane** — store pins dropped from the PostGIS coordinates.
 - **Incident rail** — similar incidents with cosine-score badges.
@@ -83,10 +83,10 @@ The hero query needs graph recursion **and** geospatial **and** vector similarit
 What's verifiably true on the live deployment (https://recall-h0.vercel.app):
 
 - **Speed:** the hero query runs in **~300 ms warm** (p50 144 ms in bench) over **580k rows**.
-- **Scale honesty:** real volume seeded; one trace lights up **1,400 stores across 38 states / 2.58M units**.
+- **Scale honesty:** real volume seeded; one trace lights up **1,400 stores across 38 states / 674,285 units**.
 - **The EXPLAIN** shows all three index paths live — irrefutable evidence the DB does the work.
 - **Cost:** scale-to-zero verified (ACU 0 → 2), inside a $100 budget.
-- **Production-grade:** keyless OIDC, least-privilege IAM (passed an automated security review), TLS-verified DB, 24 tests, CI-green build.
+- **Production-grade:** keyless OIDC, least-privilege IAM (passed an automated security review), TLS-verified DB, 34 passing unit/contract tests, CI-green build.
 
 Mapped to the judging criteria: **Technological Implementation** (three index types in one query + keyless cloud), **Design** (the console makes an invisible distributed-systems property visible), **Impact** (a real, FSMA-204-dated buyer; recalls go from days to sub-second), **Originality** (a recall *is* one Postgres query — a thing no one expects from a database hackathon).
 

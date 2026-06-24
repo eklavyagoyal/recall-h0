@@ -83,3 +83,22 @@ export const MetricsResponse = z.object({
   samples: z.array(z.object({ ts: z.string(), latencyMs: z.number() })),
   lastRowCount: z.number().int().nonnegative(),
 });
+
+export const HealthResponse = z.object({
+  status: z.literal("live"),
+  process: z.literal("up"),
+});
+
+export const ReadyResponse = z.object({
+  status: z.literal("ready"),
+  db: z.literal("up"),
+  latencyMs: z.number().nonnegative(),
+});
+
+export const NotReadyResponse = z.object({
+  status: z.literal("not_ready"),
+  db: z.literal("down"),
+  dependency: z.string(),
+  sqlstate: z.string().nullable(),
+  latencyMs: z.number().nonnegative(),
+});

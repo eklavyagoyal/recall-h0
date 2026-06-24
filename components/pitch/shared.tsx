@@ -170,7 +170,10 @@ export function CountUp({
 
   useEffect(() => {
     if (!inView || reduce) {
-      if (reduce) setDisplay(formatNumber(value, decimals));
+      if (reduce) {
+        const id = window.setTimeout(() => setDisplay(formatNumber(value, decimals)), 0);
+        return () => window.clearTimeout(id);
+      }
       return;
     }
     const controls = animate(0, value, {

@@ -35,7 +35,10 @@ export function ScenarioCycler({
     scenarios.findIndex((scenario) => scenario.tlc === activeTlc),
   );
   const onPickRef = useRef(onPick);
-  onPickRef.current = onPick;
+
+  useEffect(() => {
+    onPickRef.current = onPick;
+  }, [onPick]);
 
   useEffect(() => {
     if (!autoplay || loading) return;

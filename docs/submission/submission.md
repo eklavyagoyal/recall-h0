@@ -12,7 +12,7 @@
 2. **Maps every affected store** — the exact retail locations that received product from any implicated lot, with recalled-unit counts.
 3. **Surfaces semantically-similar past incidents** — prior outbreak reports clustered by vector similarity, so a new report is instantly connected to history.
 
-The UI is a dark control-room console: a **TopBar** (live query latency, affected-store count, 24-hour FDA SLA countdown), a **GraphPane** that ignites red along contaminated supply edges, a **MapPane** that drops store pins, and an **IncidentRail** of similar incidents with cosine-score badges. A **Query Inspector** shows the live `EXPLAIN` plan. **Every visible pixel is a query result — the database is the protagonist and the UI is its courtroom evidence.**
+The UI is a dark control-room console: a **TopBar** (live query latency, affected-store count, and an FDA 24-hour SLA clock anchored to the latest matching incident report), a **GraphPane** that ignites red along contaminated supply edges, a **MapPane** that drops store pins, and an **IncidentRail** of similar incidents with cosine-score badges. An **Outbreak Time-Travel replay** scrubs the temporal blast radius by shipment arrival time; because `/api/trace` accepts `asOf`, the same recursive trace can be re-run at any point in shipment history with the FK-DAG + temporal filter in one query. A **Query Inspector** shows the live `EXPLAIN` plan. **Every visible pixel is a query result — the database is the protagonist and the UI is its courtroom evidence.**
 
 - **Track:** Monetizable B2B — sold per-facility to grocery chains, distributors, and CPG manufacturers as a recall-readiness / FSMA-204 traceability console.
 - **Buyer:** a VP of Food Safety with a federal deadline and a budget.
@@ -61,7 +61,7 @@ The three fused index paths (served live by `/api/explain` as three node types):
 
 ### Verified live numbers
 
-Seeded at scale: **80,000 lots, 250,000 `lot_links` edges, 250,000 shipments, 1,400 stores across 38 US states, 2,000 incidents** (all with real 1024-dim embeddings). Tracing the demo lot **`PRD-OUTBREAK-0001` (Romaine Lettuce)** reaches **1,400 affected stores across 38 states, 2,583,144 units, 83 contaminated lots / 82 edges**. Hero-query latency on real Aurora: **p50 ~144ms (bench), warm API ~305–514ms over 580k rows**; the first request after auto-pause is ~15s only while the cluster resumes from scale-to-zero. Similar-incidents return genuinely relevant matches (e.g. *"FDA alert: outbreak ... linked to Romaine Lettuce. Pathogen panel positive for Listeria monocytogenes"*, cosine score ~0.65).
+Seeded at scale: **80,000 lots, 250,000 `lot_links` edges, 250,000 shipments, 1,400 stores across 38 US states, 2,000 incidents** (all with real 1024-dim embeddings). Tracing the demo lot **`PRD-OUTBREAK-0001` (Romaine Lettuce)** reaches **1,400 affected stores across 38 states, 674,285 units, 81 contaminated lots / 80 edges**. Hero-query latency on real Aurora: **p50 ~144ms (bench), warm API ~305–514ms over 580k rows**; the first request after auto-pause is ~15s only while the cluster resumes from scale-to-zero. Similar-incidents return genuinely relevant matches (e.g. *"FDA alert: outbreak ... linked to Romaine Lettuce. Pathogen panel positive for Listeria monocytogenes"*, cosine score ~0.65).
 
 ---
 
@@ -82,7 +82,7 @@ A recall is a **graph-traversal-correctness problem over an FK-constrained suppl
 - **Database access:** `pg` (node-postgres) with a module-scope pool + `attachDatabasePool`; raw parameterized SQL on the hero path (no ORM).
 - **Keyless AWS auth:** Bedrock embeddings are called **keyless** from the Vercel runtime — **Vercel OIDC → AWS STS `AssumeRoleWithWebIdentity` → IAM role `recall-vercel-runtime`** (least-privilege `bedrock:InvokeModel`). **No long-lived AWS keys anywhere.** The RDS-managed master password lives in Secrets Manager; the app receives the DB password as `PGPASSWORD` via Vercel encrypted env; TLS is verified against the Amazon RDS global CA bundle (`rejectUnauthorized: true`); the IAM trust is pinned to production + preview (no wildcard).
 - **One config switch:** `DEPLOY_TARGET` (`local` | `aurora`) is the only dev↔cloud difference — local dev runs Docker `postgis:16-3.4` + pgvector with MiniLM embeddings (zero credits); cloud runs Aurora with Titan.
-- **Tested:** vitest (24 tests) + a Playwright smoke test.
+- **Tested:** vitest (34 passing unit/contract tests) + a Playwright smoke test.
 
 **Request path:** browser → Next.js RSC / route handler on Vercel → module-scope `pg.Pool` → (Bedrock embed via OIDC/STS) → Aurora PostgreSQL Serverless v2.
 
@@ -108,10 +108,11 @@ Recall collapses that into **one query**: paste the lot, and the exact affected 
 ## Accomplishments we're proud of
 
 - **Three index paths in one ~300ms query** — Recursive Union + GiST Spatial Path + HNSW Index Scan — fused in a single `SERIALIZABLE` statement over **580k rows**, with the live `EXPLAIN` plan as proof.
+- **Outbreak Time-Travel replay** — a scrubber reconstructs the spreading blast radius over shipment history, and the API can re-run the same recursive trace with an `asOf` cutoff.
 - **Fully keyless** — no long-lived AWS credentials anywhere; Bedrock via OIDC/STS, DB secret in Secrets Manager.
 - **Scale-to-zero** — verified 0.0 ACU at idle (~$0) on CloudWatch, scaling to 2.0 ACU under load, inside a $100 budget.
 - **A provably non-interchangeable database choice** — the entry literally cannot run on DynamoDB or DSQL.
-- **Real volume, real numbers** — 1,400 stores across 38 states, 2,583,144 units, on the live deployed URL.
+- **Real volume, real numbers** — 1,400 stores across 38 states, 674,285 units, on the live deployed URL.
 
 ---
 
@@ -132,4 +133,6 @@ Recall collapses that into **one query**: paste the lot, and the exact affected 
 | **AWS database** | **Amazon Aurora PostgreSQL** (Serverless v2, engine 16.6, `us-east-1`, cluster `recall-aurora`; pgvector 0.8 HNSW + PostGIS) |
 | **Published Vercel project link (live)** | https://recall-h0.vercel.app |
 | **Vercel Team ID** | `team_vr98mdXQJyxKN5yAtBuO48T8` |
-| **GitHub** | https://github.com/eklavyagoyal/recall-h0 (private) |
+| **GitHub** | https://github.com/eklavyagoyal/recall-h0 (visibility flip pending owner confirmation before final submission) |
+
+**v0 status:** Official H0 FAQ says v0 is recommended for speed, not required; the requirement is a deployed Vercel frontend. Recall is deployed on Vercel with a hand-built Next.js 16 interface around the Aurora query spine.

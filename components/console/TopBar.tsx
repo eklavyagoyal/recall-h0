@@ -1,15 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Clock3, FileSearch, Loader2, Search } from "lucide-react";
+import { formatSlaDuration, slaRemainingMs } from "@/lib/sla";
 import type { TraceMeta } from "@/lib/types";
 import { AnimatedNumber } from "./polish";
-
-const SLA_MS = 24 * 60 * 60 * 1000;
 
 type TopBarProps = {
   meta: TraceMeta | null;
   tlc: string;
+  reportReportedAt: string | null;
   onTlcChange: (value: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   loading: boolean;
@@ -39,34 +39,34 @@ function Kpi({
   );
 }
 
-function SlaCountdown() {
-  const deadlineRef = useRef<number>(0);
-  const [remaining, setRemaining] = useState(SLA_MS);
+function SlaCountdown({ reportedAt }: { reportedAt: string | null }) {
+  const [remaining, setRemaining] = useState<number | null>(() => slaRemainingMs(reportedAt));
 
   useEffect(() => {
-    deadlineRef.current = Date.now() + SLA_MS;
-    const tick = () => setRemaining(Math.max(0, deadlineRef.current - Date.now()));
+    const tick = () => setRemaining(slaRemainingMs(reportedAt));
+    tick();
     const id = window.setInterval(tick, 1000);
     return () => window.clearInterval(id);
-  }, []);
+  }, [reportedAt]);
 
-  const hours = Math.floor(remaining / 3_600_000);
-  const minutes = Math.floor((remaining % 3_600_000) / 60_000);
-  const seconds = Math.floor((remaining % 60_000) / 1000);
-  const pad = (value: number) => String(value).padStart(2, "0");
-  const urgent = remaining < 3_600_000;
+  const urgent = remaining !== null && remaining < 3_600_000;
+  const elapsed = remaining === 0 && reportedAt !== null;
+  const label = remaining === null ? "--:--:--" : formatSlaDuration(remaining);
 
   return (
-    <div className="flex h-12 min-w-[120px] flex-col justify-center rounded-lg border border-[var(--p-amber)]/30 bg-[var(--p-amber)]/[0.06] px-3">
+    <div
+      className="flex h-12 min-w-[120px] flex-col justify-center rounded-lg border border-[var(--p-amber)]/30 bg-[var(--p-amber)]/[0.06] px-3"
+      title={reportedAt ? `Incident reported ${new Date(reportedAt).toLocaleString()}` : "No matching incident report timestamp"}
+    >
       <span className="console-kicker flex items-center gap-1 text-[var(--p-amber)]/90">
         <Clock3 className="size-3" aria-hidden="true" />
-        FDA 24h SLA
+        {elapsed ? "FDA SLA elapsed" : "FDA 24h SLA"}
       </span>
       <span
         className="console-mono text-lg leading-tight"
         style={{ color: urgent ? "var(--p-red)" : "var(--p-amber)" }}
       >
-        {pad(hours)}:{pad(minutes)}:{pad(seconds)}
+        {label}
       </span>
     </div>
   );
@@ -75,6 +75,7 @@ function SlaCountdown() {
 export function TopBar({
   meta,
   tlc,
+  reportReportedAt,
   onTlcChange,
   onSubmit,
   loading,
@@ -164,7 +165,7 @@ export function TopBar({
           tone="red"
           value={meta ? <AnimatedNumber value={meta.totalUnits} /> : "—"}
         />
-        <SlaCountdown />
+        <SlaCountdown reportedAt={reportReportedAt} />
       </div>
     </header>
   );

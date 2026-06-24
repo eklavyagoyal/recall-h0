@@ -165,7 +165,7 @@ erDiagram
 
 Per-transaction planner tuning is scoped with `SET LOCAL` (`random_page_cost = 1.1`, `enable_seqscan = off`) so the vector + relational index paths stay engaged at demo volume — affecting only the trace transaction.
 
-**Verified live over real Aurora:** 80,000 lots · **250,000 `lot_links` edges** · 250,000 shipments · 1,400 stores across **38 US states** · 2,000 incidents (all real 1024-dim embeddings). Tracing `DEMO_TLC = PRD-OUTBREAK-0001` (Romaine Lettuce) reaches **1,400 stores across 38 states, 2,583,144 units, 83 contaminated lots / 82 edges**. Latency: p50 ~144ms (bench), warm API ~305–514ms over 580k rows; first request ~15s **only** when resuming from scale-to-zero auto-pause. CloudWatch `ServerlessDatabaseCapacity` verified at **0.0 ACU idle** (≈$0) → 2.0 ACU under load.
+**Verified live over real Aurora:** 80,000 lots · **250,000 `lot_links` edges** · 250,000 shipments · 1,400 stores across **38 US states** · 2,000 incidents (all real 1024-dim embeddings). Tracing `DEMO_TLC = PRD-OUTBREAK-0001` (Romaine Lettuce) reaches **1,400 stores across 38 states, 674,285 units, 81 contaminated lots / 80 edges**. Latency: p50 ~144ms (bench), warm API ~305–514ms over 580k rows; first request ~15s **only** when resuming from scale-to-zero auto-pause. CloudWatch `ServerlessDatabaseCapacity` verified at **0.0 ACU idle** (≈$0) → 2.0 ACU under load.
 
 ---
 
@@ -188,7 +188,7 @@ Devpost wants an image. Both diagrams above are valid Mermaid; render and export
 **Option C — CLI (reproducible, for CI):**
 
 ```bash
-npx -p @mermaid-js/mermaid-cli mmdc -i diagram.mmd -o architecture.png -b transparent -s 3
+pnpm dlx @mermaid-js/mermaid-cli -i docs/submission/architecture.mmd -o docs/submission/architecture.png -b transparent -s 3
 ```
 
 > Tip: export at 2–3× scale (`-s 3` on the CLI, or the SVG path on mermaid.live) so the index annotations stay legible when Devpost downscales the upload.

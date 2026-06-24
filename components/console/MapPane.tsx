@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Move } from "lucide-react";
 import Map, { Marker, NavigationControl, Popup, type MapRef } from "react-map-gl/maplibre";
 import type { AffectedStore, ConsoleSelection } from "@/lib/types";
 import { PaneShell } from "./PaneShell";
@@ -42,6 +43,20 @@ function MapSkeleton() {
   );
 }
 
+function recentStoreIds(stores: AffectedStore[], limit = 80): Set<number> {
+  return new Set(
+    [...stores]
+      .sort((left, right) => arrivalTime(right) - arrivalTime(left))
+      .slice(0, limit)
+      .map((store) => store.storeId),
+  );
+}
+
+function arrivalTime(store: AffectedStore): number {
+  const parsed = Date.parse(store.arrivedAt);
+  return Number.isNaN(parsed) ? Number.NEGATIVE_INFINITY : parsed;
+}
+
 export function MapPane({
   stores,
   loading,
@@ -56,6 +71,7 @@ export function MapPane({
   const mapRef = useRef<MapRef>(null);
   const [ready, setReady] = useState(false);
   const [hovered, setHovered] = useState<AffectedStore | null>(null);
+  const [touchMapEnabled, setTouchMapEnabled] = useState(false);
   const bounds = useMemo(() => storeBounds(stores), [stores]);
 
   // Outbreak time-travel: when a cutoff timestamp is set, only stores the contamination
@@ -68,11 +84,16 @@ export function MapPane({
       return Number.isNaN(reached) || reached <= cutoff;
     });
   }, [stores, cutoff]);
+  const pulsingStoreIds = useMemo(() => recentStoreIds(visibleStores), [visibleStores]);
 
   useEffect(() => {
     if (!ready || !bounds) return;
     mapRef.current?.fitBounds(bounds, { padding: 48, duration: 700, maxZoom: 8.5 });
   }, [ready, bounds]);
+
+  const enableTouchMap = useCallback(() => {
+    setTouchMapEnabled(true);
+  }, []);
 
   const subtitle =
     cutoff == null
@@ -90,25 +111,33 @@ export function MapPane({
           style={{ width: "100%", height: "100%" }}
           onLoad={() => setReady(true)}
           attributionControl={false}
+          dragPan={touchMapEnabled}
+          touchZoomRotate={touchMapEnabled}
+          scrollZoom={false}
         >
           <NavigationControl position="top-right" showCompass={false} />
-          {visibleStores.map((store) => (
-            <Marker key={store.storeId} longitude={store.lng} latitude={store.lat} anchor="center">
-              <button
-                type="button"
-                aria-label={`${store.name}: ${formatter.format(store.units)} units recalled`}
-                onFocus={() => setHovered(store)}
-                onBlur={() => setHovered(null)}
-                onMouseEnter={() => setHovered(store)}
-                onMouseLeave={() => setHovered(null)}
-                onClick={() =>
-                  onSelect?.({ kind: "store", id: store.storeId, label: store.name })
-                }
-                className="size-2.5 animate-pin-pulse rounded-full bg-[var(--p-red)] ring-2 ring-[var(--p-red)]/30 transition-transform hover:scale-150 focus:scale-150 focus:outline-none focus:ring-[var(--p-red)]"
-                style={{ boxShadow: "0 0 7px 1px rgba(255,77,77,0.72)" }}
-              />
-            </Marker>
-          ))}
+          {visibleStores.map((store) => {
+            const pulse = pulsingStoreIds.has(store.storeId);
+            return (
+              <Marker key={store.storeId} longitude={store.lng} latitude={store.lat} anchor="center">
+                <button
+                  type="button"
+                  aria-label={`${store.name}: ${formatter.format(store.units)} units recalled`}
+                  onFocus={() => setHovered(store)}
+                  onBlur={() => setHovered(null)}
+                  onMouseEnter={() => setHovered(store)}
+                  onMouseLeave={() => setHovered(null)}
+                  onClick={() =>
+                    onSelect?.({ kind: "store", id: store.storeId, label: store.name })
+                  }
+                  className={`size-2.5 rounded-full bg-[var(--p-red)] ring-2 ring-[var(--p-red)]/30 transition-transform hover:scale-150 focus:scale-150 focus:outline-none focus:ring-[var(--p-red)] ${
+                    pulse ? "animate-pin-pulse" : ""
+                  }`}
+                  style={{ boxShadow: "0 0 7px 1px rgba(255,77,77,0.72)" }}
+                />
+              </Marker>
+            );
+          })}
           {hovered && (
             <Popup
               longitude={hovered.lng}
@@ -128,6 +157,18 @@ export function MapPane({
             </Popup>
           )}
         </Map>
+        {!touchMapEnabled && (
+          <button
+            type="button"
+            onClick={enableTouchMap}
+            onTouchStart={enableTouchMap}
+            className="absolute inset-x-4 bottom-4 z-10 flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[var(--p-line-2)] bg-[var(--p-bg)]/88 px-3 text-sm font-medium text-[var(--p-fg)] shadow-lg shadow-black/35 backdrop-blur-md transition-colors hover:border-[var(--p-red)] lg:hidden"
+            aria-label="Enable map gestures"
+          >
+            <Move className="size-4 text-[var(--p-red)]" aria-hidden="true" />
+            Tap to interact with map
+          </button>
+        )}
       </div>
     </PaneShell>
   );

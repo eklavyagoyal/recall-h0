@@ -17,9 +17,15 @@ function auroraSsl(): PoolConfig["ssl"] {
   return { ca, rejectUnauthorized: true };
 }
 
-function createPoolConfig(): PoolConfig {
+export function createPoolConfig(): PoolConfig {
   if (config.deployTarget === "aurora") {
-    const base = { max: 5, idleTimeoutMillis: 10_000, ssl: auroraSsl() };
+    const base = {
+      max: 5,
+      idleTimeoutMillis: 10_000,
+      connectionTimeoutMillis: 12_000,
+      statement_timeout: 18_000,
+      ssl: auroraSsl(),
+    } satisfies PoolConfig;
     const connectionString = process.env.DATABASE_URL;
     if (connectionString) {
       return { connectionString, ...base };

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { motion, useInView, useReducedMotion } from "motion/react";
+import { useInView, useReducedMotion } from "motion/react";
 import {
   Section,
   Kicker,
@@ -9,7 +9,6 @@ import {
   CountUp,
   GridBackdrop,
   Glow,
-  EASE,
 } from "@/components/pitch/shared";
 import { cn } from "@/lib/utils";
 

@@ -1,7 +1,7 @@
 import { pool } from "@/lib/db/pool";
-import { embed } from "@/lib/embeddings";
-import { TRACE_PLANNER_TUNING, TRACE_SQL, toVectorLiteral } from "@/lib/db/queries/trace";
+import { embeddingFor, TRACE_PLANNER_TUNING, TRACE_SQL, toVectorLiteral } from "@/lib/db/queries/trace";
 import { explainNodes } from "@/lib/explain/annotate";
+import type { LogContext } from "@/lib/observability/log";
 
 export type ExplainNode = {
   type: string;
@@ -17,9 +17,9 @@ export async function explainTrace(
   tlc: string,
   asOf: string | null = null,
   queryEmbedding?: number[],
+  logContext?: LogContext,
 ): Promise<ExplainResult> {
-  const vector = queryEmbedding ?? (await embed([tlc]))[0];
-  if (!vector) throw new Error("Embedding provider returned no vectors.");
+  const vector = await embeddingFor(tlc, { queryEmbedding, logContext });
   const vectorLiteral = toVectorLiteral(vector);
   const client = await pool.connect();
 

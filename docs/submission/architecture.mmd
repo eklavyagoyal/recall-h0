@@ -1,0 +1,35 @@
+flowchart TB
+  subgraph Browser["Browser — operator (Outbreak Console UI)"]
+    UI["TopBar (latency · store count · 24h SLA)<br/>GraphPane (react-force-graph-2d)<br/>MapPane (maplibre-gl / react-map-gl)<br/>IncidentRail (cosine-score badges)"]
+  end
+
+  subgraph Vercel["Vercel — Fluid Compute · region iad1 (us-east-1)"]
+    RSC["RSC first paint<br/>(dynamic route / · traces DEMO_TLC server-side)"]
+    RH["Route Handlers<br/>/api/trace · /api/explain · /api/lineage"]
+    POOL["module-scope pg.Pool<br/>+ attachDatabasePool()"]
+    OIDC["Vercel OIDC token<br/>(per-request, short-lived)"]
+  end
+
+  subgraph AWS["AWS — us-east-1"]
+    STS["AWS STS<br/>AssumeRoleWithWebIdentity"]
+    IAM["IAM role recall-vercel-runtime<br/>(least-privilege: bedrock:InvokeModel,<br/>trust pinned to production + preview)"]
+    BR["Bedrock<br/>Titan Text Embeddings V2<br/>(1024-dim · KEYLESS)"]
+    AUR[("Amazon Aurora PostgreSQL<br/>Serverless v2 · engine 16.6 · MinACU=0→2<br/>pgvector HNSW + PostGIS GiST + FK DAG")]
+    SM["Secrets Manager<br/>(RDS-managed master password)"]
+  end
+
+  UI -->|"trace TLC (POST)"| RH
+  UI -.->|"first paint (SSR rows)"| RSC
+  RSC --> POOL
+  RH --> POOL
+  RH --> OIDC
+
+  OIDC -->|"web identity (OIDC JWT)"| STS
+  STS -->|"short-lived creds"| IAM
+  IAM -->|"bedrock:InvokeModel<br/>(embed query text → vector(1024))"| BR
+
+  POOL -->|"pg over TLS<br/>rejectUnauthorized:true<br/>(Amazon RDS global CA bundle)<br/>PGPASSWORD via Vercel encrypted env"| AUR
+  SM -.->|"RDS-managed master password<br/>(rotated, never in code)"| AUR
+
+  classDef nokeys fill:#0b3d2e,stroke:#1f9d63,color:#d6ffe9;
+  class OIDC,STS,IAM nokeys;

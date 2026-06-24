@@ -10,7 +10,7 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["test/**/*.test.ts", "test/**/*.test.tsx"],
-    exclude: ["node_modules/**", "e2e/**", ".next/**"],
+    exclude: ["node_modules/**", "e2e/**", ".next/**", "test/**/*.integration.test.ts"],
     pool: "threads",
     fileParallelism: false,
     maxWorkers: 1,
