@@ -1,0 +1,2 @@
+# local code intelligence index (contains a unix socket that breaks CLI upload)
+.codegraph/
